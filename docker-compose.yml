@@ -1,0 +1,58 @@
+version: '3.8'
+
+# ============================================================================
+# 창원 대중교통 데이터 분석 - 인프라
+#  - PostGIS 16-3.4 : 공간 데이터 1급 시민 (WGS84 EPSG:4326)
+#  - pgAdmin 4      : 브라우저 기반 DB 관리 UI
+#
+# 최초 기동 시 ./sql/*.sql 이 자동 실행됨 (docker-entrypoint-initdb.d).
+# 재실행 시 schema 갱신은 scripts/init_db.py 가 멱등적으로 재적용.
+# ============================================================================
+
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: transit_postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      TZ: ${TZ:-Asia/Seoul}
+      PGTZ: ${TZ:-Asia/Seoul}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ./postgis_data:/var/lib/postgresql/data
+      - ./sql:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - transit_net
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: transit_pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-adminpass}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      TZ: ${TZ:-Asia/Seoul}
+    ports:
+      - "${PGADMIN_PORT:-8080}:80"
+    volumes:
+      - ./pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      postgis:
+        condition: service_healthy
+    networks:
+      - transit_net
+
+networks:
+  transit_net:
+    driver: bridge

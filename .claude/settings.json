@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(conda run --no-capture-output -n transit pip install lxml 2>&1)"
+    ]
+  }
+}

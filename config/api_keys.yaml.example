@@ -1,0 +1,31 @@
+# ============================================================================
+# API 키 템플릿
+#  - 실사용 시 이 파일을 복사하여 `api_keys.yaml` 로 저장 후 값 채울 것.
+#  - `api_keys.yaml` 은 .gitignore 처리되어 있음.
+#  - 보안상 가능하면 .env 사용을 우선 권장 (이 YAML 은 보조적/구조화 용도).
+# ============================================================================
+
+stcis:
+  # STCIS (전국 대중교통 통계) — CSV 다운로드 기반.
+  # 일부 페이지는 키 없이 접근 가능. 필요 시 채우기.
+  api_key: ""
+  base_url: "https://stcis.go.kr"
+
+changwon_bis:
+  # 창원시 BIS 공공 API (openapi.changwon.go.kr)
+  api_key: ""
+  base_url: "http://openapi.changwon.go.kr"
+  endpoints:
+    stops: "/rest/busInfo/getStaInfo"
+    route_stops: "/rest/busInfo/getRouteByStaInfo"
+
+tago:
+  # 국토교통부 TAGO (data.go.kr 공공데이터포털)
+  api_key: ""
+  base_url: "http://apis.data.go.kr/1613000"
+  city_code_changwon: 38010
+
+defaults:
+  request_timeout_s: 15
+  retry_count: 3
+  backoff_factor: 1.5
