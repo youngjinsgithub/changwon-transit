@@ -93,6 +93,11 @@ def main() -> int:
             return 1
         df = pd.read_csv(csv_path)
         df = df[["stcis_sttn_id", "date", "hour", "boarding", "alighting"]].copy()
+        # NaN date/hour 인 행 (빈 HTML 응답 등) 제외
+        before = len(df)
+        df = df.dropna(subset=["stcis_sttn_id", "date", "hour"])
+        if len(df) < before:
+            print(f"    NaN 행 제거: {before - len(df):,} → 유효 {len(df):,}")
         df["stcis_sttn_id"] = df["stcis_sttn_id"].astype(int)
         df["hour"] = df["hour"].astype(int)
         df["boarding"] = df["boarding"].fillna(0).astype(int)

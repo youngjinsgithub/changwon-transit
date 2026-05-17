@@ -27,6 +27,13 @@ data/raw/stcis/*checkpoint*.json
 data/raw/stcis/*.log
 data/raw/stcis/probe_*.txt
 
+# raw/population: 원본 CSV 는 차단, 비교 리포트와 README 만 허용
+!data/raw/population/
+data/raw/population/*
+!data/raw/population/.gitkeep
+!data/raw/population/comparison_report.md
+!data/raw/population/README.md
+
 # processed: CSV 는 기본 차단, 팀 공유할 메타 산출물만 허용
 data/processed/*.csv
 data/processed/*.parquet

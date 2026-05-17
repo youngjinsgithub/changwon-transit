@@ -201,3 +201,23 @@ COMMENT ON COLUMN districts.district_id    IS '행정동 내부 ID';
 COMMENT ON COLUMN districts.district_name  IS '행정동명 (예: 의창동)';
 COMMENT ON COLUMN districts.sigungu        IS '시·군·구 명';
 COMMENT ON COLUMN districts.geometry       IS '폴리곤 지오메트리 (SRID 4326)';
+
+-- districts 인구 확장 (행안부 mois CSV 적재, 2026-05-17)
+ALTER TABLE districts
+    ADD COLUMN IF NOT EXISTS population       INT,
+    ADD COLUMN IF NOT EXISTS households       INT,
+    ADD COLUMN IF NOT EXISTS pop_male         INT,
+    ADD COLUMN IF NOT EXISTS pop_female       INT,
+    ADD COLUMN IF NOT EXISTS pop_age_0_19     INT,
+    ADD COLUMN IF NOT EXISTS pop_age_20_64    INT,
+    ADD COLUMN IF NOT EXISTS pop_age_65_plus  INT,
+    ADD COLUMN IF NOT EXISTS pop_date         DATE;
+
+COMMENT ON COLUMN districts.population       IS '총 인구수 (주민등록)';
+COMMENT ON COLUMN districts.households       IS '세대수';
+COMMENT ON COLUMN districts.pop_male         IS '남자 인구';
+COMMENT ON COLUMN districts.pop_female       IS '여자 인구';
+COMMENT ON COLUMN districts.pop_age_0_19     IS '0~19세 (학령·청소년기)';
+COMMENT ON COLUMN districts.pop_age_20_64    IS '20~64세 (생산가능)';
+COMMENT ON COLUMN districts.pop_age_65_plus  IS '65세 이상 (고령)';
+COMMENT ON COLUMN districts.pop_date         IS '인구 통계 기준일';

@@ -158,7 +158,8 @@ def main() -> int:
 
     HTML_DIR.mkdir(parents=True, exist_ok=True)
 
-    client = STCISClient(sleep_range=(5.0, 10.0))
+    # 시작은 3-7초 (빠르게). 503 발생 시 자동으로 5-10초로 폴백.
+    client = STCISClient(sleep_range=(3.0, 7.0))
     client.refresh_session()
 
     print(f"\n[2] 다운로드 시작 — {len(uniq) * len(periods)}회 호출 예상")

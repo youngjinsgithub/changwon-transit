@@ -8,6 +8,7 @@
 """
 from __future__ import annotations
 
+import argparse
 import io
 import sys
 from pathlib import Path
@@ -22,12 +23,18 @@ import pandas as pd  # noqa: E402
 from src.db.connection import get_engine  # noqa: E402
 from src.db.upsert import upsert_rows  # noqa: E402
 
-MAPPING_CSV = PROJECT_ROOT / "data" / "raw" / "stcis" / "stop_mapping.csv"
+DEFAULT_MAPPING_CSV = PROJECT_ROOT / "data" / "raw" / "stcis" / "stop_mapping.csv"
 
 
 def main() -> int:
-    print(f"[1] 로드: {MAPPING_CSV.relative_to(PROJECT_ROOT)}")
-    df = pd.read_csv(MAPPING_CSV)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input", type=str, default=None,
+                        help="매핑 CSV 경로 (default: stop_mapping.csv)")
+    args = parser.parse_args()
+    mapping_csv = Path(args.input) if args.input else DEFAULT_MAPPING_CSV
+
+    print(f"[1] 로드: {mapping_csv}")
+    df = pd.read_csv(mapping_csv)
     print(f"    {len(df)} 행")
 
     valid = df[df["stcis_sttn_id"].notna()].copy()

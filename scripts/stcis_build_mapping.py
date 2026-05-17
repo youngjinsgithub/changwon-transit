@@ -28,8 +28,8 @@ from tqdm import tqdm  # noqa: E402
 
 from src.api.stcis_scraper import STCISClient, STCISStop  # noqa: E402
 
-IN_CSV = PROJECT_ROOT / "data" / "raw" / "stcis" / "stops_by_name_all.csv"
-OUT_CSV = PROJECT_ROOT / "data" / "raw" / "stcis" / "stop_mapping.csv"
+DEFAULT_IN_CSV = PROJECT_ROOT / "data" / "raw" / "stcis" / "stops_by_name_all.csv"
+DEFAULT_OUT_CSV = PROJECT_ROOT / "data" / "raw" / "stcis" / "stop_mapping.csv"
 CHECKPOINT = PROJECT_ROOT / "data" / "raw" / "stcis" / "stop_mapping_checkpoint.json"
 
 logging.basicConfig(
@@ -48,6 +48,8 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", type=int, default=None,
                         help="유니크 이름 N개만 처리 (테스트용)")
+    parser.add_argument("--input", type=str, default=None,
+                        help="입력 CSV 경로 (default: stops_by_name_all.csv)")
     parser.add_argument("--out", type=str, default=None, help="출력 CSV 경로")
     parser.add_argument("--sleep-min", type=float, default=5.0,
                         help="요청 간 최소 슬립 (초)")
@@ -55,10 +57,11 @@ def main() -> int:
                         help="요청 간 최대 슬립 (초)")
     args = parser.parse_args()
 
-    out_csv = Path(args.out) if args.out else OUT_CSV
+    in_csv = Path(args.input) if args.input else DEFAULT_IN_CSV
+    out_csv = Path(args.out) if args.out else DEFAULT_OUT_CSV
 
-    print(f"[1] 입력 로드: {IN_CSV.relative_to(PROJECT_ROOT)}")
-    df = pd.read_csv(IN_CSV)
+    print(f"[1] 입력 로드: {in_csv.relative_to(PROJECT_ROOT)}")
+    df = pd.read_csv(in_csv)
     print(f"    {len(df)} 정류장 (TAGO)")
 
     # 정류장명 단위로 검색 (이름 1개당 1회 API 호출)

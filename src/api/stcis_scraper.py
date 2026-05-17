@@ -276,13 +276,17 @@ class STCISClient:
                 continue
             if r.status_code in (429, 503):  # 레이트 제한
                 wait = 30 * (attempt + 1)
-                # 슬립 범위 영구 증가 (다음 호출부터 더 느리게)
+                # 슬립 범위 영구 증가 — 안전 임계(5-10초) 미만이면 즉시 안전 범위로 점프,
+                # 이미 안전 범위 이상이면 +3 씩 누진 (최대 45-90)
                 lo, hi = self.sleep_range
-                new_lo = min(lo + 3.0, 45.0)
-                new_hi = min(hi + 3.0, 90.0)
+                if lo < 5.0:
+                    new_lo, new_hi = 5.0, 10.0  # 첫 503: 안전 범위로 폴백
+                else:
+                    new_lo = min(lo + 3.0, 45.0)
+                    new_hi = min(hi + 3.0, 90.0)
                 self.sleep_range = (new_lo, new_hi)
                 logger.warning(
-                    "status=%d → %d초 대기 후 재시도 / 슬립 범위 %.1f~%.1f초로 영구 증가",
+                    "status=%d → %d초 대기 후 재시도 / 슬립 범위 %.1f~%.1f초로 변경",
                     r.status_code, wait, new_lo, new_hi,
                 )
                 time.sleep(wait)
