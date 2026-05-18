@@ -13,7 +13,9 @@
       "PowerShell($env:PYTHONIOENCODING=\"utf-8\"; conda run --no-capture-output -n transit python \"c:\\\\Users\\\\user\\\\ai동아리\\\\scripts\\\\load_population.py\" 2>&1 | Select-Object -Last 20)",
       "PowerShell($f = \"c:\\\\Users\\\\user\\\\ai동아리\\\\data\\\\processed\\\\maps\\\\district_per_capita.html\"; \"{0:N1} MB\" -f \\(\\(Get-Item $f\\).Length/1MB\\); Start-Process $f)",
       "Bash(git restore *)",
-      "PowerShell($env:PYTHONIOENCODING=\"utf-8\"; conda run --no-capture-output -n transit python \"c:\\\\Users\\\\user\\\\ai동아리\\\\scripts\\\\_chk.py\")"
+      "PowerShell($env:PYTHONIOENCODING=\"utf-8\"; conda run --no-capture-output -n transit python \"c:\\\\Users\\\\user\\\\ai동아리\\\\scripts\\\\_chk.py\")",
+      "Bash(git commit -m ' *)",
+      "PowerShell($env:PYTHONIOENCODING=\"utf-8\"; conda run --no-capture-output -n transit python \"c:\\\\Users\\\\user\\\\ai동아리\\\\scripts\\\\visualize_district_per_capita.py\" 2>&1 | Select-Object -Last 30)"
     ]
   }
 }
