@@ -27,28 +27,38 @@ data/raw/stcis/*checkpoint*.json
 data/raw/stcis/*.log
 data/raw/stcis/probe_*.txt
 
-# raw/population: 원본 CSV 는 차단, 비교 리포트와 README 만 허용
+# raw/population: 화이트리스트 (mois CSV 도 push 허용 — 1.3MB)
 !data/raw/population/
 data/raw/population/*
 !data/raw/population/.gitkeep
 !data/raw/population/comparison_report.md
 !data/raw/population/README.md
+!data/raw/population/mois_*.csv
+
+# raw/stops: 국토부 정류장 CSV push 허용 (20MB, 재현용)
+!data/raw/stops/
+data/raw/stops/*
+!data/raw/stops/국토교통부_*.csv
 
 # processed: CSV 는 기본 차단, 팀 공유할 메타 산출물만 허용
+# stcis_boarding_long.csv 는 .gz 압축본만 (원본은 127MB → GitHub 100MB 한도 초과)
 data/processed/*.csv
 data/processed/*.parquet
 !data/processed/priority_routes_12.csv
 !data/processed/priority_routes_stops.csv
 !data/processed/routes_ranked.csv
+!data/processed/stcis_boarding_long.csv.gz
 !data/processed/.gitkeep
 
 # processed/maps 의 folium HTML 은 팀 공유 허용
 !data/processed/maps/
 !data/processed/maps/*.html
 
-# geo: 대용량 행정동 GeoJSON 은 차단 (외부에서 재다운로드 가능)
-data/geo/*.geojson
+# geo: 행정동 GeoJSON push 허용 (33MB)
+!data/geo/
+data/geo/*
 !data/geo/.gitkeep
+!data/geo/HangJeongDong_*.geojson
 
 # 대용량 지리 데이터 (shp 등)
 *.shp
