@@ -1,176 +1,164 @@
 # 창원 대중교통 데이터 분석
 
-창원시 대중교통 공공데이터(STCIS 승하차, 창원 BIS, 국토부 TAGO 등)를 수집·정제하여
-PostgreSQL + PostGIS 위에서 EDA·공간 분석을 수행하는 프로젝트.
+창원시 대중교통 공공데이터(TAGO 정류장·노선, STCIS 승하차, 행안부 인구통계, 행정동 GeoJSON)를
+수집·정제하여 **PostgreSQL + PostGIS** 위에서 EDA·공간 분석을 수행하는 프로젝트.
 
-> 주제는 미정. EDA로 데이터가 보여주는 패턴/이상치/기회를 먼저 발견한 뒤,
-> 그 위에서 분석 주제를 도출한다.
+**2026 경상남도 빅데이터 활용 공모전 출품작.**
 
----
-
-## 폴더 구조
-
-```
-.
-├── docker-compose.yml      # PostGIS + pgAdmin
-├── .env.example            # 환경변수 템플릿
-├── requirements.txt        # Python 3.11 의존성 (== 버전 핀)
-├── sql/
-│   └── 01_schema.sql       # PostGIS 확장 + 6개 테이블 + 인덱스 + COMMENT
-├── src/
-│   ├── api/                # 외부 API 클라이언트 (Step 2)
-│   ├── etl/                # 와이드→롱 변환 등 (Step 2/5)
-│   ├── geo/                # 정류장 매칭·거리 (Step 3/4)
-│   ├── db/connection.py    # SQLAlchemy 엔진 헬퍼
-│   └── utils/
-├── scripts/
-│   ├── init_db.py          # docker up + schema 멱등 적용
-│   └── test_connection.py  # PostGIS 동작 검증
-├── notebooks/              # 단계별 분석 노트북 (placeholder)
-├── config/                 # API 키 YAML 템플릿
-├── data/{raw,processed,geo}/
-└── tests/
-```
-
-## 데이터 소스 (수집 우선순위)
-
-1. **STCIS** (stcis.go.kr) — 정류장별 시간대별 승하차 (와이드 CSV)
-2. **국토부 전국 버스정류장 위치정보** (CSV) — 좌표
-3. **창원 BIS** (openapi.changwon.go.kr) — 정류장/노선/실시간
-4. **국토부 TAGO API** (data.go.kr) — 전국 노선·정류장
-
-## 기술 스택
-
-- **인프라**: Docker, PostgreSQL 16 + PostGIS 3.4, pgAdmin 4
-- **Python 3.11** + venv
-- **핵심 라이브러리**: pandas, SQLAlchemy + psycopg2, geopandas / shapely / geopy / pyproj, networkx, folium / plotly / contextily, fuzzywuzzy
+📍 **메인 산출물**: [data/processed/maps/district_per_capita.html](data/processed/maps/district_per_capita.html)
+— 행정동 인구·1인당 승차·정류장 밀도·고령 비율 통합 분석 지도 (2,751 정류장 시간대 그래프 포함)
 
 ---
 
-## 셋업 가이드 (Step 1)
+## 🚀 팀원 빠른 시작 (재현 절차)
+
+> 핵심 데이터가 repo 에 다 포함되어 있어 **STCIS 7시간 수집 작업이 불필요**합니다.
+> 클론 후 ~30분 내 동일한 지도 재생성 가능.
 
 ### 1. 사전 요구사항
+- **Docker Desktop** 실행 중
+- **Python 3.11** (또는 `conda env create transit` 환경)
+- TAGO 인증키 ([data.go.kr/data/15098534](https://www.data.go.kr/data/15098534/openapi.do)·[15098529](https://www.data.go.kr/data/15098529/openapi.do) 활용신청, 자동 승인)
 
-- Docker Desktop (실행 중)
-- Python 3.11
-- (Windows) PowerShell
+### 2. 클론·환경
+```bash
+git clone https://github.com/youngjinsgithub/changwon-transit.git
+cd changwon-transit
+cp .env.example .env
+# .env 의 TAGO_API_KEY=  에 본인 키 입력
 
-### 2. 저장소 클론 & 진입
-
-```powershell
-cd c:\Users\user\ai동아리
-```
-
-### 3. 환경변수 파일 생성
-
-```powershell
-Copy-Item .env.example .env
-# .env 를 열어 POSTGRES_PASSWORD 등 필수 값을 채울 것
-notepad .env
-```
-
-### 4. Python 가상환경 & 의존성
-
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### 5. DB 초기화 (Docker 기동 + Schema 적용)
+### 3. 압축 데이터 풀기
+```bash
+# Windows (PowerShell)
+conda run -n transit python -c "import gzip, shutil; \
+  gzip.open('data/processed/stcis_boarding_long.csv.gz','rb').read() and \
+  shutil.copyfileobj(gzip.open('data/processed/stcis_boarding_long.csv.gz','rb'), \
+  open('data/processed/stcis_boarding_long.csv','wb'))"
 
-```powershell
-python scripts\init_db.py
+# Linux/Mac
+gunzip data/processed/stcis_boarding_long.csv.gz
 ```
 
-기대 출력:
-```
-[1/4] docker compose up -d ...
-      → 성공: docker compose up -d
-[2/4] PostGIS readiness 대기 (최대 60s) ...
-      → ready
-[3/4] schema 적용: sql\01_schema.sql
-      → 적용 완료
-[4/4] 버전 확인
-      PostgreSQL : 16.x
-      PostGIS    : 3.4 USE_GEOS=1 USE_PROJ=1 USE_STATS=1
+### 4. 데이터 적재 (각 1~5분)
+```bash
+python scripts/init_db.py                # ① Docker + 스키마
+python scripts/collect_tago.py           # ② TAGO 정류장·노선 수집 + 적재
+python scripts/load_districts.py         # ③ 행정동 GeoJSON 적재
+python scripts/stcis_load_mapping.py     # ④ STCIS↔TAGO 매핑 (CSV → DB)
+python scripts/stcis_load_db.py          # ⑤ STCIS 승하차 적재 + 집계 (7시간 SKIP!)
+python scripts/load_population.py        # ⑥ 행안부 인구 적재
 ```
 
-### 6. 연결·공간 기능 검증
-
-```powershell
-python scripts\test_connection.py
+### 5. 지도 생성 (~10분, 한 번만)
+```bash
+python scripts/visualize_district_per_capita.py
 ```
 
-기대 출력:
-```
-[1/3] PostGIS 버전 확인
-[2/3] POINT 삽입·조회 테스트
-      삽입: 창원시청
-      WKT : POINT(128.6811 35.228)
-      SRID: 4326
-[3/3] 거리 계산 테스트 (geography 캐스팅)
-      창원시청 ↔ 마산합포구청 ≈ 11,xxx.x m  (~11 km)
-
-[OK] PostGIS 정상 작동 확인 완료.
-```
-
-### 7. pgAdmin 으로 스키마 확인
-
-브라우저에서 `http://localhost:8080` 접속.
-
-- 로그인: `.env` 의 `PGADMIN_EMAIL` / `PGADMIN_PASSWORD`
-- 서버 추가 시 호스트는 **컨테이너 이름 `transit_postgis`** (pgAdmin 컨테이너 내부에서 본 호스트)
-- 6개 테이블이 존재해야 함: `routes`, `stops`, `route_stops`, `stop_distances`, `boarding_data`, `districts`
+→ [`data/processed/maps/district_per_capita.html`](data/processed/maps/district_per_capita.html) (19MB) 생성·갱신.
+HTML 그대로 브라우저로 열어도 됨 (이미 repo 에 포함).
 
 ---
 
-## 멱등 재실행
+## 📁 폴더 구조
 
-`scripts/init_db.py` 는 몇 번을 실행해도 동일 결과를 보장한다.
-- `CREATE EXTENSION IF NOT EXISTS`
-- `CREATE TABLE IF NOT EXISTS`
-- `CREATE INDEX IF NOT EXISTS`
-- `COMMENT ON` 은 본래 멱등
-
-스키마를 변경했다면 `01_schema.sql` 을 수정하고 다시 `init_db.py` 실행하면 된다
-(단, 컬럼 타입 변경 등 비호환 변경은 별도 마이그레이션 필요).
-
-## 컨테이너 정지 / 재기동
-
-```powershell
-docker compose down          # 컨테이너 정지·제거 (볼륨은 유지)
-docker compose up -d         # 재기동
-docker compose down -v       # 데이터 볼륨까지 모두 삭제 (주의)
+```
+.
+├── README.md / docker-compose.yml / requirements.txt / .env.example
+├── sql/01_schema.sql                 # PostGIS 확장 + 8개 테이블
+├── src/
+│   ├── api/{tago,stcis_scraper,base}.py   # API 클라이언트
+│   ├── db/{connection,upsert}.py          # DB 헬퍼
+│   ├── geo/distances.py                   # 정류장 거리 (Haversine)
+│   └── utils/{logger,encoding}.py
+├── scripts/                          # 데이터 파이프라인·시각화 entry point (~22개)
+│   ├── init_db.py / test_connection.py
+│   ├── collect_tago.py / load_districts.py / load_population.py
+│   ├── stcis_{build_mapping,fetch_boarding,load_mapping,load_db}.py
+│   ├── select_priority_routes.py / generate_all_stops_by_name.py
+│   ├── compare_{tago_vs_molit,population_sources}.py
+│   ├── stcis_inspect.py / stcis_*probe*.py (개발 시 사용)
+│   └── visualize_{map,priority_routes,district_per_capita}.py
+├── data/
+│   ├── raw/{stcis,stops,population,cache}/   # 수집 원본 + 매핑·가이드
+│   ├── processed/{maps,*.csv,*.csv.gz}/      # 산출물·지도
+│   └── geo/HangJeongDong_*.geojson          # 행정동 경계
+├── config/api_keys.yaml.example
+├── notebooks/   (placeholder — 분석은 scripts/ 에서)
+└── tests/
 ```
 
-## 다음 단계 (Step 2~)
+## 📊 데이터 소스
 
-| Step | 내용                              | 산출물 |
-|------|-----------------------------------|--------|
-| 2    | 데이터 수집 모듈                  | `src/api/*.py`, `src/etl/stops_loader.py` |
-| 3    | 정류장 매칭 (좌표 + 이름)         | `src/geo/matching.py` |
-| 4    | 정류장 간 거리 계산               | `src/geo/distances.py` + `stop_distances` 적재 |
-| 5    | STCIS 와이드→롱 ETL              | `src/etl/stcis_loader.py` + `boarding_data` 적재 |
-| 6    | EDA                                | `notebooks/05_eda.ipynb` |
-| 7    | 공간 분석 (PostGIS)               | `notebooks/06_spatial_analysis.ipynb` |
-| 8    | 시각화 대시보드 (선택)            | folium / plotly |
+| 소스 | 단위 | 비고 |
+|---|---|---|
+| **TAGO API** ⭐ | 정류장·노선 마스터 | data.go.kr — 자동, 5분 |
+| **STCIS** ⭐ | 정류장 시간대별 승하차 | HTTP 스크래핑 (`indicatorAjax.do`), 본 수집 7시간 |
+| **행안부 주민등록 인구** | 행정동 성별·연령별 | jumin.mois.go.kr 수동 다운, repo 포함 |
+| **행정안전부 GeoJSON** | 행정동 경계 폴리곤 | GitHub `vuski/admdongkor`, repo 포함 |
+| (옵션) 국토부 MOLIT CSV | 정류장 좌표 보강용 | TAGO 보완용, repo 포함 |
+| ~~창원 BIS~~ | ~~정류장·노선·실시간~~ | **2027-01-01 종료. TAGO 로 통합** |
 
-## 규칙
+## 🛠 기술 스택
 
-- 코드 식별자: 영문 `snake_case`
-- 주석·문서·DB `COMMENT ON`: 한국어 OK
-- 좌표계: 모든 데이터 **WGS84 (EPSG:4326)**. 거리 계산 시 `::geography` 캐스팅
-- 시간대: **KST (Asia/Seoul)** 일관
-- API 키: `.env` 또는 `config/api_keys.yaml` (둘 다 .gitignore)
-- ETL: 모두 UPSERT (`ON CONFLICT`) 로 멱등성 보장
-- 인코딩: CSV 로딩 시 `chardet` 자동 감지
+- **인프라**: Docker, PostgreSQL 16 + PostGIS 3.4, pgAdmin 4
+- **Python 3.11** (conda env `transit` 권장)
+- **핵심 라이브러리**: pandas, SQLAlchemy + psycopg2, geopandas / shapely / pyproj, folium, branca, beautifulsoup4, requests
 
-## 트러블슈팅
+---
 
-- **`docker compose` 명령을 찾을 수 없음**: Docker Desktop 이 실행 중인지 확인.
-- **`POSTGRES_PASSWORD` 미설정 오류**: `.env` 파일이 프로젝트 루트에 있는지 확인.
-- **포트 5432/8080 충돌**: `.env` 의 `POSTGRES_PORT`/`PGADMIN_PORT` 변경.
-- **`psycopg2` 설치 실패**: `psycopg2-binary` 가 명시되어 있어 일반적으로 빌드 불필요. PATH 와 wheel 가용성 확인.
-- **pgAdmin 에서 `localhost` 연결 실패**: pgAdmin 컨테이너 내부 기준이므로 호스트는 `transit_postgis` 또는 호스트 머신 IP 를 사용.
+## 🧮 분석 단위·매핑
+
+### 정류장 단위 (TAGO stop_id)
+- 2,751 정류장 (창원 전체)
+- 12 우선순위 노선 938 정류장 (분석 표적)
+- STCIS sttn 2,729 매칭 (`stcis_stop_mapping` 테이블)
+
+### 행정동 단위 (55개)
+- HangJeongDong geojson 기준 (행정안전부 행정동, 2026-04 기준)
+- 인구·면적·정류장 수·승하차 합산 가능
+
+### 더블카운팅 자동 보정
+- `boarding_data.boarding` = `SUM(매칭 STCIS sttn) ÷ n_tago_in_grp`
+- 상행/하행 페어 (n=2) → 각자 평균값 공유. 합산 시 STCIS 실제 총량과 일치
+
+---
+
+## 🔁 멱등 재실행
+
+모든 ETL 은 `ON CONFLICT DO UPDATE` (UPSERT) 라 같은 스크립트 여러 번 돌려도 결과 동일.
+
+```bash
+docker compose down          # 컨테이너만 정지 (DB 유지)
+docker compose up -d         # 재기동
+docker compose down -v       # DB 까지 삭제 — 주의
+```
+
+## 📐 규칙
+
+- **좌표계**: WGS84 (EPSG:4326). 거리 계산 시 `::geography` 캐스팅
+- **시간대**: KST (Asia/Seoul) 일관
+- **API 키**: `.env` (gitignored). `.env.example` 참조
+- **코드 식별자**: 영문 `snake_case` / **주석·DB COMMENT**: 한국어 OK
+
+## 🩹 트러블슈팅
+
+| 증상 | 해결 |
+|---|---|
+| `docker compose` 명령 없음 | Docker Desktop 실행 확인 |
+| `POSTGRES_PASSWORD` 오류 | `.env` 가 프로젝트 루트에 있는지 확인 |
+| 포트 5432/8080 충돌 | `.env` 의 `POSTGRES_PORT`/`PGADMIN_PORT` 변경 |
+| pgAdmin 에서 `localhost` 연결 실패 | 호스트를 `transit_postgis` 또는 호스트 머신 IP 로 |
+| `ModuleNotFoundError: No module named 'branca'` | conda transit 환경 활성화 (`conda activate transit`) |
+| 19MB 지도 HTML 로딩 느림 | 정상 — 첫 로딩 5~15초 |
+
+---
+
+## 📜 라이선스·출처
+
+- TAGO API: data.go.kr 공공데이터
+- STCIS: 한국교통안전공단 stcis.go.kr
+- 인구: 행정안전부 jumin.mois.go.kr
+- 행정동 경계: github.com/vuski/admdongkor (CC-BY)
