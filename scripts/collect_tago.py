@@ -182,7 +182,7 @@ def collect_route_stops(engine, routes_with_id: pd.DataFrame) -> int:
 
     호출이 노선 수만큼 발생 — 캐싱으로 재실행 안전.
     """
-    print(f"\n[3/4] 노선별 경유정류소 수집 — {len(routes_with_id)}개 노선")
+    print(f"\n[3/4] 노선별 경유정류소 수집 - {len(routes_with_id)}개 노선")
     total = 0
 
     rows_to_upsert = []
