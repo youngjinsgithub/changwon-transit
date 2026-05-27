@@ -72,16 +72,21 @@ HTML 그대로 브라우저로 열어도 됨 (이미 repo 에 포함).
 
 | 순위 | 노선 | 점수 | 담당 |
 |------|------|------|------|
-| 1위 | BRT일반(5000) | 0.7109 | — |
-| 2위 | 100번 | 0.6884 | — |
-| 3위 | 122번 | 0.6685 | — |
+| 1위 | **BRT일반(5000)** | 0.7109 | 윤호 |
+| 2위 | **100번** | 0.6884 | 윤호 |
+| 3위 | **122번** | 0.6685 | 윤호 |
 | 4위 | **102번** | 0.6663 | 가희 |
 | 5위 | **103번** | 0.6631 | 가희 |
 | 6위 | **109번** | 0.6354 | 가희 |
 | 7위 | **64-1번** | 0.6287 | 가희 |
+| 8위 | **113번** | 0.6159 | 태현 |
+| 9위 | **111번** | 0.6147 | 태현 |
+| 10위 | **41번** | 0.6094 | 태현 |
 
+- 📂 **윤호님 담당 노선 분석**: [`analysis/yunho_routes/`](analysis/yunho_routes/README.md)
 - 📂 **가희님 담당 노선 분석**: [`analysis/gahee_routes/`](analysis/gahee_routes/README.md)
-- 🗺️ TOP 3 노선 지도: [`data/processed/maps/scenario_A_top3.html`](data/processed/maps/scenario_A_top3.html)
+- 📂 **태현님 담당 노선 분석**: [`analysis/taehyun_routes/`](analysis/taehyun_routes/README.md)
+- 🗺️ 윤호 담당 노선 지도: [`data/processed/maps/scenario_A_top3.html`](data/processed/maps/scenario_A_top3.html)
 - 🗺️ 가희 담당 노선 지도: [`analysis/gahee_routes/routes_map.html`](analysis/gahee_routes/routes_map.html)
 - 📊 전체 노선 점수 CSV: [`data/processed/scenario_A_result.csv`](data/processed/scenario_A_result.csv)
 
