@@ -62,6 +62,31 @@ HTML 그대로 브라우저로 열어도 됨 (이미 repo 에 포함).
 
 ---
 
+## 🚌 노선 개편 우선순위 분석 (시나리오 A)
+
+창원시 전체 **167개 노선**을 5개 지표로 점수화하여 우선순위 산정.
+
+```
+종합점수 = 교통량×0.30 + 승차수요×0.30 + 배차간격×0.20 + 소외도×0.10 + 인구역산×0.10
+```
+
+| 순위 | 노선 | 점수 | 담당 |
+|------|------|------|------|
+| 1위 | BRT일반(5000) | 0.7109 | — |
+| 2위 | 100번 | 0.6884 | — |
+| 3위 | 122번 | 0.6685 | — |
+| 4위 | **102번** | 0.6663 | 가희 |
+| 5위 | **103번** | 0.6631 | 가희 |
+| 6위 | **109번** | 0.6354 | 가희 |
+| 7위 | **64-1번** | 0.6287 | 가희 |
+
+- 📂 **가희님 담당 노선 분석**: [`analysis/gahee_routes/`](analysis/gahee_routes/README.md)
+- 🗺️ TOP 3 노선 지도: [`data/processed/maps/scenario_A_top3.html`](data/processed/maps/scenario_A_top3.html)
+- 🗺️ 가희 담당 노선 지도: [`analysis/gahee_routes/routes_map.html`](analysis/gahee_routes/routes_map.html)
+- 📊 전체 노선 점수 CSV: [`data/processed/scenario_A_result.csv`](data/processed/scenario_A_result.csv)
+
+---
+
 ## 📁 폴더 구조
 
 ```
@@ -85,6 +110,10 @@ HTML 그대로 브라우저로 열어도 됨 (이미 repo 에 포함).
 │   ├── raw/{stcis,stops,population,cache}/   # 수집 원본 + 매핑·가이드
 │   ├── processed/{maps,*.csv,*.csv.gz}/      # 산출물·지도
 │   └── geo/HangJeongDong_*.geojson          # 행정동 경계
+├── analysis/
+│   └── gahee_routes/              # 가희님 담당 노선 (102·103·109·64-1) 분석
+│       ├── README.md              # 분석 현황 + 개편안 계획
+│       └── routes_map.html        # 4개 노선 인터랙티브 지도
 ├── config/api_keys.yaml.example
 ├── notebooks/   (placeholder — 분석은 scripts/ 에서)
 └── tests/
