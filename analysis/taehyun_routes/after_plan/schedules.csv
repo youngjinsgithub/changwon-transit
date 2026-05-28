@@ -1,0 +1,4 @@
+route_id,route_name,first_bus,last_bus,headway_peak,headway_off,trips_weekday,trips_saturday,trips_holiday
+CWB379001130,113번,,,,,,,
+CWB379001110,111번,,,,,,,
+CWB379000410,41번,,,,,,,
