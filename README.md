@@ -1,198 +1,166 @@
-# 창원 대중교통 데이터 분석
+# 창원시 버스 노선 개편 우선순위 분석
 
-창원시 대중교통 공공데이터(TAGO 정류장·노선, STCIS 승하차, 행안부 인구통계, 행정동 GeoJSON)를
-수집·정제하여 **PostgreSQL + PostGIS** 위에서 EDA·공간 분석을 수행하는 프로젝트.
+**2026 경상남도 빅데이터 활용 공모전 출품작**
 
-**2026 경상남도 빅데이터 활용 공모전 출품작.**
-
-📍 **메인 산출물**: [data/processed/maps/district_per_capita.html](data/processed/maps/district_per_capita.html)
-— 행정동 인구·1인당 승차·정류장 밀도·고령 비율 통합 분석 지도 (2,751 정류장 시간대 그래프 포함)
+창원시 대중교통 공공데이터를 수집·분석하여 **버스 노선 개편 우선순위 상위 10개 노선**을 선정하고,
+팀원이 각 노선을 분담하여 개편안을 도출하는 프로젝트입니다.
 
 ---
 
-## 🚀 팀원 빠른 시작 (재현 절차)
+## 👥 팀 분업 구조
 
-> 핵심 데이터가 repo 에 다 포함되어 있어 **STCIS 7시간 수집 작업이 불필요**합니다.
-> 클론 후 ~30분 내 동일한 지도 재생성 가능.
+시나리오 A 알고리즘으로 창원시 전체 167개 노선을 점수화한 결과, **상위 10개 노선**을 3인이 분담합니다.
+
+| 순위 | 노선 | 종합점수 | 승차량 | 소외도 | 담당 |
+|------|------|---------|--------|--------|------|
+| 1위 | **BRT일반(5000)** | 0.7109 | 1,582,703 | 0.120 | 윤호 |
+| 2위 | **100번** | 0.6884 | 1,481,301 | 0.129 | 윤호 |
+| 3위 | **122번** | 0.6685 | 1,379,749 | 0.135 | 윤호 |
+| 4위 | **102번** | 0.6663 | 1,429,359 | 0.124 | 가희 |
+| 5위 | **103번** | 0.6631 | 1,450,408 | 0.118 | 가희 |
+| 6위 | **109번** | 0.6354 | 1,387,702 | 0.121 | 가희 |
+| 7위 | **64-1번** | 0.6287 | 1,090,412 | 0.155 | 가희 |
+| 8위 | **113번** | 0.6159 | 1,261,912 | 0.106 | 태현 |
+| 9위 | **111번** | 0.6147 | 1,198,776 | 0.115 | 태현 |
+| 10위 | **41번** | 0.6094 | 1,034,308 | 0.154 | 태현 |
+
+### 📂 담당자별 분석 폴더
+
+| 담당 | 폴더 | 담당 노선 |
+|------|------|----------|
+| 윤호 | [`analysis/yunho_routes/`](analysis/yunho_routes/README.md) | BRT일반(5000)·100·122번 |
+| 가희 | [`analysis/gahee_routes/`](analysis/gahee_routes/README.md) | 102·103·109·64-1번 |
+| 태현 | [`analysis/taehyun_routes/`](analysis/taehyun_routes/README.md) | 113·111·41번 |
+
+---
+
+## 📊 시나리오 A — 우선순위 산정 알고리즘
+
+창원시 167개 노선을 5개 지표로 Min-Max 정규화 후 가중치 합산.
+
+```
+종합점수 = 교통량      × 0.30   (승차량으로 대체 — 대리지표)
+         + 승차 수요   × 0.30
+         + 배차간격    × 0.20   (경쟁노선 적은 지역일수록 높은 점수)
+         + 소외도      × 0.10   (65세 이상 인구 비율)
+         + 인구 역산   × 0.10   (인구 많은 곳은 낮은 점수 — 이미 혜택 받는 지역)
+```
+
+> **선정 기준**: 승객 수요가 크고, 배차간격이 길고, 고령자 비율이 높은 노선일수록 개편 우선순위가 높습니다.
+
+### 관련 스크립트
+
+| 파일 | 역할 |
+|------|------|
+| [`scripts/scenario_A_map.py`](scripts/scenario_A_map.py) | 167개 노선 전체 점수 계산 + TOP 10 지도 생성 |
+| [`scripts/scenario_A_selected.py`](scripts/scenario_A_selected.py) | 선택 노선만 체크박스 지도 생성 |
+| [`data/processed/scenario_A_result.csv`](data/processed/scenario_A_result.csv) | 전체 노선 점수 결과 (167개) |
+
+### 지도 산출물
+
+| 지도 | 내용 |
+|------|------|
+| [`data/processed/maps/scenario_A_top3.html`](data/processed/maps/scenario_A_top3.html) | 윤호 담당 노선 (BRT·100·122) |
+| [`analysis/gahee_routes/routes_map.html`](analysis/gahee_routes/routes_map.html) | 가희 담당 노선 (102·103·109·64-1) |
+| [`data/processed/maps/scenario_A_map.html`](data/processed/maps/scenario_A_map.html) | TOP 10 전체 노선 지도 |
+
+---
+
+## 🚀 팀원 빠른 시작
+
+> 핵심 데이터가 repo에 포함되어 있어 STCIS 7시간 수집 없이 바로 재현 가능합니다.
 
 ### 1. 사전 요구사항
 - **Docker Desktop** 실행 중
-- **Python 3.11** (또는 `conda env create transit` 환경)
-- TAGO 인증키 ([data.go.kr/data/15098534](https://www.data.go.kr/data/15098534/openapi.do)·[15098529](https://www.data.go.kr/data/15098529/openapi.do) 활용신청, 자동 승인)
+- **Python 3.11**
+- TAGO 인증키 ([data.go.kr](https://www.data.go.kr/data/15098534/openapi.do) 활용신청, 자동 승인)
 
-### 2. 클론·환경
+### 2. 클론 및 환경 설정
 ```bash
 git clone https://github.com/youngjinsgithub/changwon-transit.git
 cd changwon-transit
 cp .env.example .env
-# .env 의 TAGO_API_KEY=  에 본인 키 입력
+# .env 파일에서 TAGO_API_KEY= 에 본인 키 입력
 
 pip install -r requirements.txt
 ```
 
-### 3. 압축 데이터 풀기
+### 3. DB 초기화 및 데이터 적재
 ```bash
-# Windows (PowerShell)
-conda run -n transit python -c "import gzip, shutil; \
-  gzip.open('data/processed/stcis_boarding_long.csv.gz','rb').read() and \
-  shutil.copyfileobj(gzip.open('data/processed/stcis_boarding_long.csv.gz','rb'), \
-  open('data/processed/stcis_boarding_long.csv','wb'))"
-
-# Linux/Mac
-gunzip data/processed/stcis_boarding_long.csv.gz
+python scripts/init_db.py          # Docker + 스키마 생성
+python scripts/collect_tago.py     # TAGO 정류장·노선 수집
+python scripts/load_districts.py   # 행정동 GeoJSON 적재
+python scripts/stcis_load_mapping.py  # STCIS↔TAGO 매핑
+python scripts/stcis_load_db.py    # 승하차 데이터 적재 (repo 포함 CSV 사용)
+python scripts/load_population.py  # 인구 데이터 적재
 ```
 
-### 4. 데이터 적재 (각 1~5분)
+### 4. 시나리오 A 분석 실행
 ```bash
-python scripts/init_db.py                # ① Docker + 스키마
-python scripts/collect_tago.py           # ② TAGO 정류장·노선 수집 + 적재
-python scripts/load_districts.py         # ③ 행정동 GeoJSON 적재
-python scripts/stcis_load_mapping.py     # ④ STCIS↔TAGO 매핑 (CSV → DB)
-python scripts/stcis_load_db.py          # ⑤ STCIS 승하차 적재 + 집계 (7시간 SKIP!)
-python scripts/load_population.py        # ⑥ 행안부 인구 적재
+python scripts/scenario_A_map.py   # 점수 계산 + TOP10 지도 생성
 ```
 
-### 5. 지도 생성 (~10분, 한 번만)
+### 5. 담당 노선 지도 생성
 ```bash
-python scripts/visualize_district_per_capita.py
+# scenario_A_selected.py 상단의 TARGET_BUS_NOS를 담당 노선으로 수정 후 실행
+python scripts/scenario_A_selected.py
 ```
-
-→ [`data/processed/maps/district_per_capita.html`](data/processed/maps/district_per_capita.html) (19MB) 생성·갱신.
-HTML 그대로 브라우저로 열어도 됨 (이미 repo 에 포함).
-
----
-
-## 🚌 노선 개편 우선순위 분석 (시나리오 A)
-
-창원시 전체 **167개 노선**을 5개 지표로 점수화하여 우선순위 산정.
-
-```
-종합점수 = 교통량×0.30 + 승차수요×0.30 + 배차간격×0.20 + 소외도×0.10 + 인구역산×0.10
-```
-
-| 순위 | 노선 | 점수 | 담당 |
-|------|------|------|------|
-| 1위 | **BRT일반(5000)** | 0.7109 | 윤호 |
-| 2위 | **100번** | 0.6884 | 윤호 |
-| 3위 | **122번** | 0.6685 | 윤호 |
-| 4위 | **102번** | 0.6663 | 가희 |
-| 5위 | **103번** | 0.6631 | 가희 |
-| 6위 | **109번** | 0.6354 | 가희 |
-| 7위 | **64-1번** | 0.6287 | 가희 |
-| 8위 | **113번** | 0.6159 | 태현 |
-| 9위 | **111번** | 0.6147 | 태현 |
-| 10위 | **41번** | 0.6094 | 태현 |
-
-- 📂 **윤호님 담당 노선 분석**: [`analysis/yunho_routes/`](analysis/yunho_routes/README.md)
-- 📂 **가희님 담당 노선 분석**: [`analysis/gahee_routes/`](analysis/gahee_routes/README.md)
-- 📂 **태현님 담당 노선 분석**: [`analysis/taehyun_routes/`](analysis/taehyun_routes/README.md)
-- 🗺️ 윤호 담당 노선 지도: [`data/processed/maps/scenario_A_top3.html`](data/processed/maps/scenario_A_top3.html)
-- 🗺️ 가희 담당 노선 지도: [`analysis/gahee_routes/routes_map.html`](analysis/gahee_routes/routes_map.html)
-- 📊 전체 노선 점수 CSV: [`data/processed/scenario_A_result.csv`](data/processed/scenario_A_result.csv)
 
 ---
 
 ## 📁 폴더 구조
 
 ```
-.
-├── README.md / docker-compose.yml / requirements.txt / .env.example
-├── sql/01_schema.sql                 # PostGIS 확장 + 8개 테이블
-├── src/
-│   ├── api/{tago,stcis_scraper,base}.py   # API 클라이언트
-│   ├── db/{connection,upsert}.py          # DB 헬퍼
-│   ├── geo/distances.py                   # 정류장 거리 (Haversine)
-│   └── utils/{logger,encoding}.py
-├── scripts/                          # 데이터 파이프라인·시각화 entry point (~22개)
-│   ├── init_db.py / test_connection.py
-│   ├── collect_tago.py / load_districts.py / load_population.py
-│   ├── stcis_{build_mapping,fetch_boarding,load_mapping,load_db}.py
-│   ├── select_priority_routes.py / generate_all_stops_by_name.py
-│   ├── compare_{tago_vs_molit,population_sources}.py
-│   ├── stcis_inspect.py / stcis_*probe*.py (개발 시 사용)
-│   └── visualize_{map,priority_routes,district_per_capita}.py
+changwon-transit/
+├── analysis/                         # 팀원별 노선 분석
+│   ├── yunho_routes/                 # 윤호님: BRT(5000)·100·122번
+│   ├── gahee_routes/                 # 가희님: 102·103·109·64-1번
+│   └── taehyun_routes/              # 태현님: 113·111·41번
+├── scripts/                          # 데이터 파이프라인·분석 스크립트
+│   ├── init_db.py                    # Docker + DB 스키마 초기화
+│   ├── collect_tago.py               # TAGO API 수집
+│   ├── load_districts.py             # 행정동 GeoJSON 적재
+│   ├── load_population.py            # 인구 데이터 적재
+│   ├── stcis_*.py                    # STCIS 승하차 수집·적재
+│   ├── scenario_A_map.py             # 시나리오 A 메인 분석
+│   └── scenario_A_selected.py        # 선택 노선 지도 생성
 ├── data/
-│   ├── raw/{stcis,stops,population,cache}/   # 수집 원본 + 매핑·가이드
-│   ├── processed/{maps,*.csv,*.csv.gz}/      # 산출물·지도
-│   └── geo/HangJeongDong_*.geojson          # 행정동 경계
-├── analysis/
-│   └── gahee_routes/              # 가희님 담당 노선 (102·103·109·64-1) 분석
-│       ├── README.md              # 분석 현황 + 개편안 계획
-│       └── routes_map.html        # 4개 노선 인터랙티브 지도
-├── config/api_keys.yaml.example
-├── notebooks/   (placeholder — 분석은 scripts/ 에서)
-└── tests/
+│   ├── processed/
+│   │   ├── scenario_A_result.csv     # 전체 167개 노선 점수
+│   │   └── maps/                     # 생성된 지도 HTML
+│   └── raw/                          # 수집 원본 데이터
+├── sql/01_schema.sql                 # PostGIS 스키마
+├── src/                              # API 클라이언트·DB 헬퍼
+├── docker-compose.yml
+├── requirements.txt
+└── .env.example
 ```
+
+---
 
 ## 📊 데이터 소스
 
-| 소스 | 단위 | 비고 |
-|---|---|---|
-| **TAGO API** ⭐ | 정류장·노선 마스터 | data.go.kr — 자동, 5분 |
-| **STCIS** ⭐ | 정류장 시간대별 승하차 | HTTP 스크래핑 (`indicatorAjax.do`), 본 수집 7시간 |
-| **행안부 주민등록 인구** | 행정동 성별·연령별 | jumin.mois.go.kr 수동 다운, repo 포함 |
-| **행정안전부 GeoJSON** | 행정동 경계 폴리곤 | GitHub `vuski/admdongkor`, repo 포함 |
-| (옵션) 국토부 MOLIT CSV | 정류장 좌표 보강용 | TAGO 보완용, repo 포함 |
-| ~~창원 BIS~~ | ~~정류장·노선·실시간~~ | **2027-01-01 종료. TAGO 로 통합** |
+| 소스 | 내용 | 수집 방법 |
+|------|------|----------|
+| **TAGO API** | 정류장·노선 마스터 (2,751 정류장, 167개 노선) | data.go.kr 자동 수집 |
+| **STCIS** | 정류장 시간대별 승하차 (~150만 행) | HTTP 스크래핑, repo에 포함 |
+| **행안부 인구** | 행정동별 성별·연령별 인구 | jumin.mois.go.kr, repo에 포함 |
+| **행정안전부 GeoJSON** | 창원시 55개 행정동 경계 | vuski/admdongkor, repo에 포함 |
 
 ## 🛠 기술 스택
 
-- **인프라**: Docker, PostgreSQL 16 + PostGIS 3.4, pgAdmin 4
-- **Python 3.11** (conda env `transit` 권장)
-- **핵심 라이브러리**: pandas, SQLAlchemy + psycopg2, geopandas / shapely / pyproj, folium, branca, beautifulsoup4, requests
+- **DB**: PostgreSQL 16 + PostGIS 3.4 (Docker)
+- **언어**: Python 3.11
+- **주요 라이브러리**: pandas, SQLAlchemy, psycopg2, folium, geopandas, numpy
 
 ---
-
-## 🧮 분석 단위·매핑
-
-### 정류장 단위 (TAGO stop_id)
-- 2,751 정류장 (창원 전체)
-- 12 우선순위 노선 938 정류장 (분석 표적)
-- STCIS sttn 2,729 매칭 (`stcis_stop_mapping` 테이블)
-
-### 행정동 단위 (55개)
-- HangJeongDong geojson 기준 (행정안전부 행정동, 2026-04 기준)
-- 인구·면적·정류장 수·승하차 합산 가능
-
-### 더블카운팅 자동 보정
-- `boarding_data.boarding` = `SUM(매칭 STCIS sttn) ÷ n_tago_in_grp`
-- 상행/하행 페어 (n=2) → 각자 평균값 공유. 합산 시 STCIS 실제 총량과 일치
-
----
-
-## 🔁 멱등 재실행
-
-모든 ETL 은 `ON CONFLICT DO UPDATE` (UPSERT) 라 같은 스크립트 여러 번 돌려도 결과 동일.
-
-```bash
-docker compose down          # 컨테이너만 정지 (DB 유지)
-docker compose up -d         # 재기동
-docker compose down -v       # DB 까지 삭제 — 주의
-```
-
-## 📐 규칙
-
-- **좌표계**: WGS84 (EPSG:4326). 거리 계산 시 `::geography` 캐스팅
-- **시간대**: KST (Asia/Seoul) 일관
-- **API 키**: `.env` (gitignored). `.env.example` 참조
-- **코드 식별자**: 영문 `snake_case` / **주석·DB COMMENT**: 한국어 OK
 
 ## 🩹 트러블슈팅
 
 | 증상 | 해결 |
-|---|---|
+|------|------|
 | `docker compose` 명령 없음 | Docker Desktop 실행 확인 |
-| `POSTGRES_PASSWORD` 오류 | `.env` 가 프로젝트 루트에 있는지 확인 |
-| 포트 5432/8080 충돌 | `.env` 의 `POSTGRES_PORT`/`PGADMIN_PORT` 변경 |
-| pgAdmin 에서 `localhost` 연결 실패 | 호스트를 `transit_postgis` 또는 호스트 머신 IP 로 |
-| `ModuleNotFoundError: No module named 'branca'` | conda transit 환경 활성화 (`conda activate transit`) |
-| 19MB 지도 HTML 로딩 느림 | 정상 — 첫 로딩 5~15초 |
-
----
-
-## 📜 라이선스·출처
-
-- TAGO API: data.go.kr 공공데이터
-- STCIS: 한국교통안전공단 stcis.go.kr
-- 인구: 행정안전부 jumin.mois.go.kr
-- 행정동 경계: github.com/vuski/admdongkor (CC-BY)
+| `POSTGRES_PASSWORD` 오류 | `.env` 파일이 프로젝트 루트에 있는지 확인 |
+| 포트 5432 충돌 | `.env`의 `POSTGRES_PORT` 변경 |
+| 지도 HTML 로딩 느림 | 정상 — 첫 로딩 5~15초 소요 |
+| Windows 한글 인코딩 오류 | `$env:PYTHONUTF8 = "1"` 설정 후 실행 |

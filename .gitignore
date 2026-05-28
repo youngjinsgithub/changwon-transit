@@ -47,6 +47,7 @@ data/processed/*.parquet
 !data/processed/priority_routes_12.csv
 !data/processed/priority_routes_stops.csv
 !data/processed/routes_ranked.csv
+!data/processed/scenario_A_result.csv
 !data/processed/stcis_boarding_long.csv.gz
 !data/processed/.gitkeep
 
