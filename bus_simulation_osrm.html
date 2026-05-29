@@ -1,0 +1,859 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>버스 노선 개편 시뮬레이터 — 창원시 (OSRM 도로경로)</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f1117;--surface:#181c27;--surface2:#1e2335;--surface3:#252a3d;
+  --border:#2a3050;--border2:#3a4570;
+  --blue:#4f8ef7;--blue2:#2563eb;--teal:#22d3b0;--amber:#f59e0b;
+  --red:#f87171;--green:#4ade80;
+  --text:#e8eaf6;--text2:#9fa8c9;--text3:#5a6490;
+  --font:'Noto Sans KR',sans-serif;--mono:'DM Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;font-size:14px}
+.app{display:grid;grid-template-rows:56px 1fr;height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 24px;gap:16px;z-index:100}
+header h1{font-size:15px;font-weight:700;letter-spacing:-.3px}
+header .pill{font-size:11px;padding:3px 10px;border-radius:20px;background:var(--blue2);color:#fff;font-weight:500}
+.pill-osrm{font-size:11px;padding:3px 10px;border-radius:20px;background:rgba(34,211,176,.15);color:var(--teal);border:1px solid rgba(34,211,176,.35);font-weight:600}
+.spacer{flex:1}
+.tab-bar{display:flex;gap:2px;background:var(--surface2);padding:4px;border-radius:8px}
+.tab-btn{padding:5px 14px;border-radius:6px;border:none;background:transparent;color:var(--text2);font-size:12px;font-family:var(--font);cursor:pointer;transition:all .15s}
+.tab-btn.on{background:var(--surface3);color:var(--text);font-weight:500}
+.main{display:grid;grid-template-columns:320px 1fr;overflow:hidden}
+.sidebar{background:var(--surface);border-right:1px solid var(--border);overflow-y:auto;display:flex;flex-direction:column}
+.content{overflow:hidden;display:flex;flex-direction:column}
+.sb-section{padding:14px 16px;border-bottom:1px solid var(--border)}
+.sb-title{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text3);text-transform:uppercase;margin-bottom:10px}
+.form-row{margin-bottom:8px}
+.form-label{font-size:11px;color:var(--text2);margin-bottom:4px;display:block}
+input[type=text],input[type=number],select,textarea{
+  width:100%;background:var(--surface2);border:1px solid var(--border);
+  color:var(--text);font-family:var(--font);font-size:12px;
+  padding:7px 10px;border-radius:6px;outline:none;transition:border .15s
+}
+input:focus,select:focus,textarea:focus{border-color:var(--blue)}
+textarea{resize:vertical;min-height:60px;line-height:1.5}
+select option{background:var(--surface2)}
+.btn{width:100%;padding:9px;border-radius:7px;border:none;font-family:var(--font);font-size:13px;font-weight:500;cursor:pointer;transition:all .15s}
+.btn-secondary{background:var(--surface3);color:var(--text);border:1px solid var(--border2)}.btn-secondary:hover{background:var(--border)}
+.btn-danger{background:#7f1d1d;color:var(--red);border:1px solid #991b1b}
+.btn-sm{padding:5px 10px;font-size:11px;border-radius:5px;width:auto}
+.btn-teal{background:var(--teal);color:#000}.btn-teal:hover{background:#1ab89a}
+.row-btns{display:flex;gap:6px;margin-top:6px}
+.item-list{display:flex;flex-direction:column;gap:4px;margin-bottom:8px}
+.item-row{display:flex;align-items:center;gap:8px;padding:6px 8px;background:var(--surface2);border-radius:6px;border:1px solid var(--border)}
+.item-row .label{flex:1;font-size:12px}
+.item-row .del{background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;padding:0 2px;line-height:1}.item-row .del:hover{color:var(--red)}
+.eye-btn{background:none;border:none;cursor:pointer;font-size:13px;padding:0 2px;color:var(--text2);line-height:1;flex-shrink:0;transition:color .15s}
+.eye-btn:hover{color:var(--text)}.eye-btn.off{color:var(--border2)}
+.solo-btn{background:none;border:1px solid var(--border);color:var(--text3);font-size:9px;padding:1px 6px;border-radius:3px;cursor:pointer;font-family:var(--font);flex-shrink:0;transition:all .15s;white-space:nowrap}
+.solo-btn:hover{color:var(--blue);border-color:var(--blue)}
+.route-hidden{opacity:0.35}
+.stop-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.map-wrap{flex:1;position:relative;overflow:hidden}
+#mapContainer{width:100%;height:100%}
+/* OSRM 로딩 오버레이 */
+.map-loading{position:absolute;inset:0;background:rgba(15,17,23,.72);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px;z-index:2000;pointer-events:none}
+.spinner{width:36px;height:36px;border:3px solid var(--border2);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.map-legend{position:absolute;bottom:24px;right:12px;background:rgba(15,17,23,.9);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:11px;z-index:1000;pointer-events:none}
+.legend-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.legend-row:last-child{margin-bottom:0}
+.legend-line{width:24px;height:3px;border-radius:2px}
+.map-controls{position:absolute;top:12px;right:12px;display:flex;flex-direction:column;gap:4px;z-index:1000}
+.map-controls button{width:32px;height:32px;background:rgba(15,17,23,.9);backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:6px;color:var(--text);cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}.map-controls button:hover{background:var(--surface2)}
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px}
+.stat-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.stat-label{font-size:10px;color:var(--text3);letter-spacing:.05em;margin-bottom:4px}
+.stat-val{font-size:20px;font-weight:700;font-family:var(--mono)}
+.stat-val.before{color:var(--text2)}.stat-val.after{color:var(--teal)}
+.stat-delta{font-size:11px;margin-top:2px;font-weight:500}
+.delta-good{color:var(--green)}.delta-bad{color:var(--red)}.delta-neu{color:var(--text3)}
+.charts-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;padding:0 12px 12px}
+.chart-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px}
+.chart-title{font-size:11px;color:var(--text2);margin-bottom:8px;font-weight:500}
+.bar-chart{display:flex;flex-direction:column;gap:5px}
+.bar-row{display:flex;align-items:center;gap:6px;font-size:10px}
+.bar-label{width:64px;color:var(--text2);text-align:right;flex-shrink:0}
+.bar-track{flex:1;height:12px;background:var(--surface3);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width .6s cubic-bezier(.4,0,.2,1)}
+.bar-val{width:30px;color:var(--text);font-family:var(--mono);font-size:10px}
+.coverage-grid{display:grid;grid-template-columns:repeat(8,1fr);gap:2px}
+.coverage-cell{aspect-ratio:1;border-radius:2px;transition:background .4s}
+.sim-bar{padding:10px 12px;border-top:1px solid var(--border);background:var(--surface)}
+.progress-bar{height:4px;background:var(--surface3);border-radius:2px;overflow:hidden;margin-top:6px;display:none}
+.progress-fill{height:100%;background:var(--teal);width:0;transition:width .05s linear;border-radius:2px}
+.content-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface)}
+.ct-btn{padding:10px 16px;font-size:12px;font-family:var(--font);background:none;border:none;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .15s}
+.ct-btn.on{color:var(--blue);border-bottom-color:var(--blue)}
+.ct-panel{display:none;flex:1;overflow-y:auto}
+.ct-panel.on{display:flex;flex-direction:column}
+.route-table{width:calc(100% - 24px);border-collapse:collapse;font-size:12px;margin:8px 12px}
+.route-table th{text-align:left;padding:6px 8px;color:var(--text3);font-weight:500;border-bottom:1px solid var(--border);font-size:11px}
+.route-table td{padding:7px 8px;border-bottom:1px solid var(--border);color:var(--text2)}
+.route-table tr:hover td{background:var(--surface2)}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.pulsing{animation:pulse 1s infinite}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px;color:var(--text3);text-align:center;gap:8px}
+.empty .icon{font-size:32px}
+.empty p{font-size:12px;line-height:1.6}
+/* Leaflet 다크 테마 */
+.leaflet-popup-content-wrapper{background:rgba(15,17,23,.97)!important;border:1px solid #3a4570!important;color:var(--text)!important;border-radius:8px!important;box-shadow:0 4px 16px rgba(0,0,0,.6)!important}
+.leaflet-popup-tip-container{display:none}
+.leaflet-popup-close-button{color:#5a6490!important;font-size:18px!important;top:6px!important;right:8px!important}
+.leaflet-popup-content{margin:10px 14px!important;font-family:var(--font)!important}
+.stop-tooltip{background:rgba(15,17,23,.92)!important;border:1px solid #2a3050!important;color:#e8eaf6!important;font-size:10px!important;padding:2px 5px!important;border-radius:4px!important;box-shadow:none!important;white-space:nowrap!important;font-family:var(--font)!important}
+.stop-tooltip::before{display:none!important}
+.leaflet-control-attribution{font-size:9px!important;background:rgba(15,17,23,.7)!important;color:var(--text3)!important}
+.leaflet-control-attribution a{color:var(--text3)!important}
+.leaflet-container{background:#1a1f2e!important}
+.leaflet-tile{filter:brightness(.85) saturate(.7) hue-rotate(190deg)!important}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div style="width:28px;height:28px;background:var(--blue2);border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px">🚌</div>
+  <h1>버스 노선 개편 시뮬레이터</h1>
+  <span class="pill">창원시</span>
+  <span class="pill-osrm">OSRM 도로경로</span>
+  <div class="spacer"></div>
+  <div class="tab-bar">
+    <button class="tab-btn on" onclick="switchView('setup')">데이터 입력</button>
+    <button class="tab-btn" onclick="switchView('result')">시뮬레이션 결과</button>
+  </div>
+</header>
+
+<div class="main">
+<aside class="sidebar">
+  <div class="sb-section">
+    <div class="sb-title">정류장 등록</div>
+    <div class="form-row">
+      <label class="form-label">정류장 이름</label>
+      <input type="text" id="stopName" placeholder="예: 창원시청, 마산역..." onkeydown="if(event.key==='Enter')addStop()">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px" class="form-row">
+      <div><label class="form-label">위도 (Lat)</label><input type="number" id="stopLat" placeholder="35.2280" step="0.0001"></div>
+      <div><label class="form-label">경도 (Lng)</label><input type="number" id="stopLng" placeholder="128.6814" step="0.0001"></div>
+    </div>
+    <div class="form-row">
+      <label class="form-label">일평균 승하차 인원</label>
+      <input type="number" id="stopDemand" placeholder="500" min="0">
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="addStop()" style="width:100%">+ 정류장 추가</button>
+    <div style="margin-top:10px">
+      <div class="sb-title" style="margin-bottom:6px">등록된 정류장 (<span id="stopCount">0</span>개)</div>
+      <div class="item-list" id="stopList"></div>
+    </div>
+    <div class="row-btns">
+      <button class="btn btn-secondary btn-sm" onclick="loadSampleStops()" style="flex:1">시급 노선 정류장</button>
+      <button class="btn btn-danger btn-sm" onclick="clearStops()" style="flex:1">초기화</button>
+    </div>
+  </div>
+
+  <div class="sb-section">
+    <div class="sb-title">노선 등록</div>
+    <div class="form-row">
+      <label class="form-label">노선 이름</label>
+      <input type="text" id="routeName" placeholder="예: 3006번, 급행A...">
+    </div>
+    <div class="form-row">
+      <label class="form-label">경유 정류장 (이름 쉼표 구분)</label>
+      <textarea id="routeStops" placeholder="마산역, 창원시청, 창원역"></textarea>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px" class="form-row">
+      <div><label class="form-label">배차간격 (분)</label><input type="number" id="routeInterval" placeholder="15" min="1"></div>
+      <div><label class="form-label">구분</label>
+        <select id="routeType"><option value="before">개편 전</option><option value="after">개편 후</option></select>
+      </div>
+    </div>
+    <button class="btn btn-secondary btn-sm" onclick="addRoute()" style="width:100%">+ 노선 추가</button>
+    <div style="margin-top:10px">
+      <div class="sb-title" style="margin-bottom:6px">등록된 노선 (<span id="routeCount">0</span>개)</div>
+      <div class="item-list" id="routeList"></div>
+    </div>
+    <div class="row-btns">
+      <button class="btn btn-secondary btn-sm" onclick="loadSampleRoutes()" style="flex:1">7개 노선 (전/후)</button>
+      <button class="btn btn-danger btn-sm" onclick="clearRoutes()" style="flex:1">초기화</button>
+    </div>
+    <div class="row-btns" style="margin-top:4px">
+      <button class="btn btn-secondary btn-sm" onclick="showAllRoutes()" style="flex:1">● 전체 표시</button>
+    </div>
+  </div>
+
+  <div class="sb-section">
+    <div class="sb-title">시뮬레이션 설정</div>
+    <div class="form-row">
+      <label class="form-label">승객 수 (명/시뮬)</label>
+      <input type="number" id="simPassengers" value="1000" min="100" max="5000">
+    </div>
+    <div class="form-row">
+      <label class="form-label">평균 목적지 거리 (정류장 수)</label>
+      <input type="number" id="simAvgDist" value="4" min="1" max="20">
+    </div>
+  </div>
+
+  <div class="sim-bar">
+    <button class="btn btn-teal" id="simBtn" onclick="runSimulation()">▶ 시뮬레이션 실행</button>
+    <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+  </div>
+</aside>
+
+<div class="content" id="setupView">
+  <div class="content-tabs" id="mapTabs">
+    <button class="ct-btn on" onclick="switchMap('both')">전체 보기</button>
+    <button class="ct-btn" onclick="switchMap('before')">개편 전</button>
+    <button class="ct-btn" onclick="switchMap('after')">개편 후</button>
+  </div>
+  <div class="map-wrap">
+    <div id="mapContainer"></div>
+    <!-- OSRM 로딩 오버레이 -->
+    <div class="map-loading" id="mapLoading">
+      <div class="spinner"></div>
+      <span style="font-size:12px;color:var(--text2)">OSRM 도로 경로 계산 중...</span>
+      <span id="loadProgress" style="font-size:11px;color:var(--text3)"></span>
+      <span style="font-size:10px;color:var(--text3)">첫 로드 후 캐시되어 빠르게 전환됩니다</span>
+    </div>
+    <div class="map-controls">
+      <button onclick="zoomMap('in')" title="확대">+</button>
+      <button onclick="zoomMap('out')" title="축소">−</button>
+      <button onclick="resetZoom()" title="전체 보기">⊙</button>
+    </div>
+    <div class="map-legend">
+      <div style="font-size:10px;color:var(--text3);margin-bottom:7px;font-weight:600;letter-spacing:.05em">범례</div>
+      <div class="legend-row"><div style="width:24px;border-top:2px dashed #4f8ef7"></div><span style="color:var(--text2)">개편 전 노선</span></div>
+      <div class="legend-row"><div class="legend-line" style="background:#22d3b0"></div><span style="color:var(--text2)">개편 후 노선</span></div>
+      <div class="legend-row"><div style="width:10px;height:10px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div><span style="color:var(--text2)">정류장 (크기=수요)</span></div>
+      <div style="border-top:1px solid var(--border);margin:6px 0"></div>
+      <div style="font-size:9px;color:var(--text3);margin-bottom:5px;font-weight:600">알고리즘 표시</div>
+      <div class="legend-row">
+        <div style="width:10px;height:10px;border-radius:50%;background:#374151;border:2px solid #ef4444;flex-shrink:0"></div>
+        <span style="color:#ef4444;font-size:10px">✕ 제거된 정류장</span>
+      </div>
+      <div class="legend-row">
+        <div style="background:#1a1f2e;border:1px solid #4ade80;color:#4ade80;padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700;white-space:nowrap">🔀 GA</div>
+        <span style="color:var(--text2);font-size:10px">노선 재설계</span>
+      </div>
+      <div class="legend-row">
+        <div style="background:#1a1f2e;border:1px solid #60a5fa;color:#60a5fa;padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700;white-space:nowrap">🔀 D*</div>
+        <span style="color:var(--text2);font-size:10px">최단경로 직선화</span>
+      </div>
+      <div class="legend-row">
+        <div style="background:#1a1f2e;border:1px solid #f59e0b;color:#f59e0b;padding:1px 5px;border-radius:3px;font-size:8px;font-weight:700;white-space:nowrap">⏱ SA</div>
+        <span style="color:var(--text2);font-size:10px">배차 간격 최적화</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="content" id="resultView" style="display:none">
+  <div class="content-tabs">
+    <button class="ct-btn on" onclick="switchResult('summary')">요약 비교</button>
+    <button class="ct-btn" onclick="switchResult('routes')">노선별 분석</button>
+    <button class="ct-btn" onclick="switchResult('coverage')">커버리지 분석</button>
+  </div>
+  <div class="ct-panel on" id="rp-summary">
+    <div id="noResultMsg" class="empty">
+      <div class="icon">📊</div>
+      <p>아직 시뮬레이션이 실행되지 않았어요.<br>왼쪽에서 데이터를 입력하고<br>시뮬레이션을 실행해주세요.</p>
+    </div>
+    <div id="resultContent" style="display:none">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-label">평균 이동시간</div><div style="display:flex;gap:8px;align-items:flex-end"><div><div style="font-size:9px;color:var(--text3)">전</div><div class="stat-val before" id="s-travel-before">--</div></div><div style="color:var(--text3);font-size:18px;padding-bottom:2px">→</div><div><div style="font-size:9px;color:var(--teal)">후</div><div class="stat-val after" id="s-travel-after">--</div></div></div><div class="stat-delta" id="s-travel-delta"></div></div>
+        <div class="stat-card"><div class="stat-label">평균 환승 횟수</div><div style="display:flex;gap:8px;align-items:flex-end"><div><div style="font-size:9px;color:var(--text3)">전</div><div class="stat-val before" id="s-transfer-before">--</div></div><div style="color:var(--text3);font-size:18px;padding-bottom:2px">→</div><div><div style="font-size:9px;color:var(--teal)">후</div><div class="stat-val after" id="s-transfer-after">--</div></div></div><div class="stat-delta" id="s-transfer-delta"></div></div>
+        <div class="stat-card"><div class="stat-label">노선 커버리지</div><div style="display:flex;gap:8px;align-items:flex-end"><div><div style="font-size:9px;color:var(--text3)">전</div><div class="stat-val before" id="s-coverage-before">--</div></div><div style="color:var(--text3);font-size:18px;padding-bottom:2px">→</div><div><div style="font-size:9px;color:var(--teal)">후</div><div class="stat-val after" id="s-coverage-after">--</div></div></div><div class="stat-delta" id="s-coverage-delta"></div></div>
+        <div class="stat-card"><div class="stat-label">평균 대기시간</div><div style="display:flex;gap:8px;align-items:flex-end"><div><div style="font-size:9px;color:var(--text3)">전</div><div class="stat-val before" id="s-wait-before">--</div></div><div style="color:var(--text3);font-size:18px;padding-bottom:2px">→</div><div><div style="font-size:9px;color:var(--teal)">후</div><div class="stat-val after" id="s-wait-after">--</div></div></div><div class="stat-delta" id="s-wait-delta"></div></div>
+        <div class="stat-card"><div class="stat-label">직통 승차 비율</div><div style="display:flex;gap:8px;align-items:flex-end"><div><div style="font-size:9px;color:var(--text3)">전</div><div class="stat-val before" id="s-direct-before">--</div></div><div style="color:var(--text3);font-size:18px;padding-bottom:2px">→</div><div><div style="font-size:9px;color:var(--teal)">후</div><div class="stat-val after" id="s-direct-after">--</div></div></div><div class="stat-delta" id="s-direct-delta"></div></div>
+        <div class="stat-card"><div class="stat-label">고수요 정류장 커버</div><div style="display:flex;gap:8px;align-items:flex-end"><div><div style="font-size:9px;color:var(--text3)">전</div><div class="stat-val before" id="s-highd-before">--</div></div><div style="color:var(--text3);font-size:18px;padding-bottom:2px">→</div><div><div style="font-size:9px;color:var(--teal)">후</div><div class="stat-val after" id="s-highd-after">--</div></div></div><div class="stat-delta" id="s-highd-delta"></div></div>
+      </div>
+      <div class="charts-row">
+        <div class="chart-card"><div class="chart-title">이동시간 분포 비교</div><div class="bar-chart" id="travelChart"></div></div>
+        <div class="chart-card"><div class="chart-title">노선별 혼잡도 (개편 후)</div><div class="bar-chart" id="crowdChart"></div></div>
+        <div class="chart-card"><div class="chart-title">목표 달성 현황</div><div id="goalChart"></div></div>
+      </div>
+      <div style="padding:0 12px 12px">
+        <div class="chart-card"><div class="chart-title">종합 분석 의견</div><div id="aiComment" style="font-size:12px;color:var(--text2);line-height:1.8"></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="ct-panel" id="rp-routes">
+    <table class="route-table"><thead><tr><th>노선명</th><th>구분</th><th>정류장 수</th><th>배차(분)</th><th>평균 승객</th><th>혼잡도</th><th>커버 비율</th></tr></thead><tbody id="routeAnalysisTbody"></tbody></table>
+  </div>
+  <div class="ct-panel" id="rp-coverage">
+    <div style="padding:12px">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div class="chart-card"><div class="chart-title">개편 전 커버리지</div><div class="coverage-grid" id="covBefore"></div></div>
+        <div class="chart-card"><div class="chart-title">개편 후 커버리지</div><div class="coverage-grid" id="covAfter"></div></div>
+      </div>
+      <div class="chart-card" style="margin-top:12px"><div class="chart-title">정류장별 접근성 변화</div><div class="bar-chart" id="accessChart"></div></div>
+    </div>
+  </div>
+</div>
+</div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ══════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════
+let stops=[], routes=[], simResults=null;
+let mapMode='both';
+let leafletMap=null, mapLayers=[];
+const COLORS_BEFORE=['#4f8ef7','#818cf8','#a78bfa','#60a5fa'];
+const COLORS_AFTER=['#22d3b0','#4ade80','#f59e0b','#fb923c'];
+let hiddenRouteIds=new Set(); // 개별 노선 표시/숨김 관리
+
+// ── OSRM 전용 ──────────────────────────────
+const routeCache=new Map(); // 경로 기하 캐시 (재요청 방지)
+let currentDrawId=0;        // 중복 호출 취소용
+
+// ══════════════════════════════════════════
+//  SAMPLE DATA — 창원시 7개 시급 노선
+// ══════════════════════════════════════════
+function loadSampleStops(){
+  stops=[
+    {id:0, name:'창원대학교',    lat:35.2483, lng:128.6923, demand:850},
+    {id:1, name:'창원역',        lat:35.2391, lng:128.6967, demand:1200},
+    {id:2, name:'창원시청',      lat:35.2280, lng:128.6814, demand:900},
+    {id:3, name:'창원버스터미널',lat:35.2242, lng:128.6941, demand:1050},
+    {id:4, name:'성산구청',      lat:35.2156, lng:128.6924, demand:700},
+    {id:5, name:'상남동',        lat:35.2157, lng:128.6907, demand:950},
+    {id:6, name:'명곡동',        lat:35.2320, lng:128.7084, demand:650},
+    {id:7, name:'대방동',        lat:35.1560, lng:128.7230, demand:750},
+    {id:8, name:'마산역',        lat:35.1886, lng:128.5745, demand:1100},
+    {id:9, name:'마산합포구청',  lat:35.1948, lng:128.5574, demand:400},
+    {id:10,name:'마산대학교',    lat:35.2050, lng:128.5680, demand:600},
+    {id:11,name:'회원동',        lat:35.2100, lng:128.5870, demand:500},
+    {id:12,name:'불모산역',      lat:35.2046, lng:128.6479, demand:350},
+    {id:13,name:'덕동차고지',    lat:35.1870, lng:128.5320, demand:80},
+    {id:14,name:'진해구청',      lat:35.1567, lng:128.6936, demand:600},
+    {id:15,name:'인의동',        lat:35.1350, lng:128.6680, demand:400},
+    {id:16,name:'남문지구',      lat:35.1400, lng:128.7030, demand:350},
+    {id:17,name:'용원',          lat:35.1083, lng:128.7250, demand:500},
+    {id:18,name:'안골동(신항)',  lat:35.1050, lng:128.7100, demand:450},
+    {id:19,name:'장유',          lat:35.1700, lng:128.8200, demand:900},
+  ];
+  renderStopList();
+  drawMap();
+  if(leafletMap) resetZoom();
+}
+
+function loadSampleRoutes(){
+  if(stops.length===0){alert('먼저 정류장을 불러오세요.');return;}
+  hiddenRouteIds.clear(); // 노선 재로드 시 숨김 초기화
+  routes=[
+    // ── 개편 전: 7개 시급 노선 현행 (pairId로 개편 후와 연결) ──
+    {id:0, name:'3006번(현행)', pairId:'3006', stops:['창원대학교','창원역','진해구청','남문지구','용원','안골동(신항)'], interval:40, type:'before'},
+    {id:1, name:'730번(현행)',  pairId:'730',  stops:['덕동차고지','마산합포구청','마산역','회원동','불모산역'],          interval:23, type:'before'},
+    {id:2, name:'3002번(현행)',pairId:'3002',  stops:['안골동(신항)','용원','진해구청','마산합포구청','마산대학교'],      interval:40, type:'before'},
+    {id:3, name:'212번(현행)', pairId:'212',   stops:['창원역','성산구청','상남동','명곡동'],                            interval:20, type:'before'},
+    {id:4, name:'105번(현행)', pairId:'105',   stops:['덕동차고지','마산합포구청','마산역','창원시청','성산구청','대방동'],interval:18, type:'before'},
+    {id:5, name:'160번(현행)', pairId:'160',   stops:['덕동차고지','마산역','창원시청','진해구청','인의동'],              interval:20, type:'before'},
+    {id:6, name:'770번(현행)', pairId:'770',   stops:['창원대학교','창원역','창원버스터미널','장유'],                    interval:20, type:'before'},
+    // ── 개편 후: 알고리즘 적용 (algo: GA=노선 재설계, SA=배차 최적화, D*=최단경로) ──
+    {id:7, name:'3006급행·GA',  pairId:'3006', algo:'GA', stops:['창원대학교','진해구청','용원','안골동(신항)'],   interval:20, type:'after'},
+    {id:8, name:'730직선·D*',   pairId:'730',  algo:'D*', stops:['마산역','회원동','불모산역'],                    interval:15, type:'after'},
+    {id:9, name:'3002증편·SA',  pairId:'3002', algo:'SA', stops:['안골동(신항)','진해구청','마산합포구청','마산대학교'], interval:20, type:'after'},
+    {id:10,name:'212증편·SA',   pairId:'212',  algo:'SA', stops:['창원역','성산구청','상남동','명곡동'],           interval:12, type:'after'},
+    {id:11,name:'105분리·GA',   pairId:'105',  algo:'GA', stops:['마산역','창원시청','대방동'],                    interval:15, type:'after'},
+    {id:12,name:'160증편·SA',   pairId:'160',  algo:'SA', stops:['마산역','창원시청','진해구청','인의동'],         interval:12, type:'after'},
+    {id:13,name:'770정기·GA',   pairId:'770',  algo:'GA', stops:['창원대학교','창원역','장유'],                    interval:15, type:'after'},
+  ];
+  renderRouteList();
+  drawMap();
+}
+
+// ══════════════════════════════════════════
+//  OSRM 경로 요청 (도로 스냅)
+// ══════════════════════════════════════════
+async function fetchOSRMRoute(pts){
+  // 캐시 키: 정류장 좌표 목록
+  const key=pts.map(p=>`${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('|');
+  if(routeCache.has(key)) return routeCache.get(key);
+
+  try{
+    // OSRM 공개 서버 — 좌표 순서는 경도,위도
+    const coords=pts.map(p=>`${p.lng},${p.lat}`).join(';');
+    const url=`https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+
+    const controller=new AbortController();
+    const tid=setTimeout(()=>controller.abort(),10000); // 10초 타임아웃
+    const res=await fetch(url,{signal:controller.signal});
+    clearTimeout(tid);
+
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data=await res.json();
+    if(data.code==='Ok'&&data.routes[0]){
+      // GeoJSON 좌표는 [lng, lat] → Leaflet은 [lat, lng]로 변환
+      const latlngs=data.routes[0].geometry.coordinates.map(([lng,lat])=>[lat,lng]);
+      routeCache.set(key,latlngs);
+      return latlngs;
+    }
+  }catch(e){
+    console.warn('OSRM 요청 실패, 직선으로 대체:', e.message);
+  }
+
+  // 실패 시 직선 폴백
+  const fallback=pts.map(p=>[p.lat,p.lng]);
+  routeCache.set(key,fallback);
+  return fallback;
+}
+
+// ══════════════════════════════════════════
+//  MAP (Leaflet + OSRM)
+// ══════════════════════════════════════════
+function initMap(){
+  leafletMap=L.map('mapContainer',{center:[35.2100,128.6400],zoom:12,zoomControl:false});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+    attribution:'© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
+    maxZoom:19
+  }).addTo(leafletMap);
+}
+
+function clearMapLayers(){
+  mapLayers.forEach(l=>{try{leafletMap.removeLayer(l);}catch(e){}});
+  mapLayers=[];
+}
+
+async function drawMap(){
+  if(!leafletMap) return;
+  const drawId=++currentDrawId; // 이 호출의 고유 ID
+  clearMapLayers();
+
+  const showBefore=mapMode==='both'||mapMode==='before';
+  const showAfter=mapMode==='both'||mapMode==='after';
+
+  // 색상 미리 배정 (비동기 처리 중 순서 유지)
+  let bIdx=0,aIdx=0;
+  const visibleRoutes=routes
+    .filter(r=>
+      !(r.type==='before'&&!showBefore)&&
+      !(r.type==='after'&&!showAfter)&&
+      !hiddenRouteIds.has(r.id)        // 개별 숨김 처리
+    )
+    .map(r=>({...r, col:r.type==='before'?COLORS_BEFORE[bIdx++%4]:COLORS_AFTER[aIdx++%4]}));
+
+  // 캐시 미적중 노선이 있을 때만 로딩 표시
+  const needsFetch=visibleRoutes.some(r=>{
+    const pts=r.stops.map(n=>stops.find(s=>s.name===n)).filter(Boolean);
+    const k=pts.map(p=>`${p.lat.toFixed(4)},${p.lng.toFixed(4)}`).join('|');
+    return !routeCache.has(k);
+  });
+
+  const loadEl=document.getElementById('mapLoading');
+  const progEl=document.getElementById('loadProgress');
+  if(needsFetch&&loadEl) loadEl.style.display='flex';
+
+  let done=0;
+  const total=visibleRoutes.length;
+
+  // 모든 노선 경로 병렬 요청
+  const results=await Promise.all(visibleRoutes.map(async r=>{
+    const pts=r.stops.map(n=>stops.find(s=>s.name===n)).filter(Boolean);
+    if(pts.length<2){done++;return null;}
+    const latlngs=await fetchOSRMRoute(pts);
+    done++;
+    if(progEl) progEl.textContent=`${done} / ${total} 노선 완료`;
+    return{r,latlngs,pts};
+  }));
+
+  // 더 최신 drawMap() 호출이 있으면 이 결과 버림
+  if(drawId!==currentDrawId){
+    if(loadEl) loadEl.style.display='none';
+    return;
+  }
+
+  // 폴리라인 그리기
+  results.forEach(res=>{
+    if(!res) return;
+    const{r,latlngs,pts}=res;
+    const poly=L.polyline(latlngs,{
+      color:r.col,
+      weight:r.type==='after'?4:2,
+      opacity:0.85,
+      dashArray:r.type==='before'?'8,5':null
+    }).addTo(leafletMap);
+    mapLayers.push(poly);
+
+    // 노선명 라벨
+    const last=pts[pts.length-1];
+    const lbl=L.marker([last.lat,last.lng],{
+      icon:L.divIcon({
+        html:`<span style="background:${r.col};color:#000;padding:1px 6px;border-radius:3px;font-size:10px;font-weight:700;white-space:nowrap;display:inline-block;font-family:'DM Mono',monospace">${r.name}</span>`,
+        className:'',iconAnchor:[-4,10]
+      }),
+      interactive:false
+    }).addTo(leafletMap);
+    mapLayers.push(lbl);
+
+    // ── 알고리즘 시각화 (개편 후 노선만) ────────────────────────
+    if(r.type==='after' && r.algo && r.pairId){
+      const beforeRoute=routes.find(br=>br.type==='before'&&br.pairId===r.pairId);
+      if(!beforeRoute) return;
+
+      const midIdx=Math.floor(latlngs.length/2);
+      const midPt=latlngs[midIdx];
+
+      if(r.algo==='SA'){
+        // SA: 배차 간격 개선 배지
+        const badge=L.marker(midPt,{
+          icon:L.divIcon({
+            html:`<div style="background:#1a1f2e;border:1.5px solid #f59e0b;color:#f59e0b;padding:3px 8px;border-radius:5px;font-size:9px;white-space:nowrap;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.5);pointer-events:none">⏱ SA · 배차 ${beforeRoute.interval}분→${r.interval}분</div>`,
+            className:'',iconAnchor:[60,8]
+          }),
+          interactive:false
+        }).addTo(leafletMap);
+        mapLayers.push(badge);
+
+      } else if(r.algo==='GA'||r.algo==='D*'){
+        // GA/D*: 제거된 정류장 X 마커 표시
+        const removedNames=beforeRoute.stops.filter(s=>!r.stops.includes(s));
+        const algoColor=r.algo==='GA'?'#4ade80':'#60a5fa';
+        const algoLabel=r.algo==='GA'?'GA · 정류장 재설계':'D* · 최단경로';
+
+        removedNames.forEach(stopName=>{
+          const stop=stops.find(s=>s.name===stopName);
+          if(!stop) return;
+
+          // 제거된 정류장: 회색 원 + 빨간 X
+          const removed=L.circleMarker([stop.lat,stop.lng],{
+            radius:10, fillColor:'#374151', color:'#ef4444',
+            weight:2.5, opacity:1, fillOpacity:0.85
+          }).addTo(leafletMap);
+          removed.bindTooltip(
+            `<span style="color:#ef4444;font-weight:700">✕ 제거됨</span>&nbsp;${stopName}<br><span style="color:#9fa8c9;font-size:10px">${r.algo} 알고리즘 적용</span>`,
+            {direction:'top',className:'stop-tooltip'}
+          );
+
+          const xMark=L.marker([stop.lat,stop.lng],{
+            icon:L.divIcon({
+              html:`<div style="color:#ef4444;font-weight:900;font-size:14px;line-height:1;text-shadow:0 0 4px rgba(0,0,0,.8)">✕</div>`,
+              className:'',iconAnchor:[7,10]
+            }),
+            interactive:false
+          }).addTo(leafletMap);
+
+          mapLayers.push(removed,xMark);
+        });
+
+        // 노선 중간에 알고리즘 배지
+        const cnt=removedNames.length;
+        const badge=L.marker(midPt,{
+          icon:L.divIcon({
+            html:`<div style="background:#1a1f2e;border:1.5px solid ${algoColor};color:${algoColor};padding:3px 8px;border-radius:5px;font-size:9px;white-space:nowrap;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.5);pointer-events:none">🔀 ${algoLabel} (${cnt}개 제거)</div>`,
+            className:'',iconAnchor:[65,8]
+          }),
+          interactive:false
+        }).addTo(leafletMap);
+        mapLayers.push(badge);
+      }
+    }
+    // ────────────────────────────────────────────────────────────
+  });
+
+  // 정류장 마커
+  stops.forEach(s=>{
+    const col=demandColor(s.demand);
+    const radius=s.demand>900?10:s.demand>600?8:6;
+    const srv=routes.filter(r=>r.stops.includes(s.name));
+    const bf=srv.filter(r=>r.type==='before');
+    const af=srv.filter(r=>r.type==='after');
+
+    const circle=L.circleMarker([s.lat,s.lng],{
+      radius,fillColor:col,color:'#0f1117',weight:2,opacity:1,fillOpacity:0.9
+    });
+    circle.bindTooltip(s.name,{permanent:true,direction:'top',className:'stop-tooltip',offset:[0,-radius-2]});
+    circle.bindPopup(
+      `<div style="font-weight:600;color:#4f8ef7;margin-bottom:6px;font-size:13px">${s.name}</div>
+      <div style="color:#9fa8c9;font-size:11px;line-height:1.9">
+        일평균 수요: <b style="color:#e8eaf6">${s.demand.toLocaleString()}명</b><br>
+        개편 전: <span style="color:#4f8ef7">${bf.map(r=>r.name).join(', ')||'없음'}</span><br>
+        개편 후: <span style="color:#22d3b0">${af.map(r=>r.name).join(', ')||'없음'}</span>
+      </div>`,{maxWidth:220}
+    );
+    circle.addTo(leafletMap);
+    mapLayers.push(circle);
+  });
+
+  if(loadEl) loadEl.style.display='none';
+}
+
+function zoomMap(dir){if(!leafletMap)return;dir==='in'?leafletMap.zoomIn():leafletMap.zoomOut();}
+function resetZoom(){
+  if(!leafletMap)return;
+  if(stops.length===0){leafletMap.setView([35.2100,128.6400],12);return;}
+  leafletMap.fitBounds(L.latLngBounds(stops.map(s=>[s.lat,s.lng])),{padding:[50,50]});
+}
+
+// ══════════════════════════════════════════
+//  STOP CRUD
+// ══════════════════════════════════════════
+function addStop(){
+  const name=document.getElementById('stopName').value.trim();
+  const lat=parseFloat(document.getElementById('stopLat').value);
+  const lng=parseFloat(document.getElementById('stopLng').value);
+  const demand=parseInt(document.getElementById('stopDemand').value)||300;
+  if(!name){alert('정류장 이름을 입력해주세요');return;}
+  if(isNaN(lat)||isNaN(lng)){alert('위도/경도를 입력해주세요');return;}
+  stops.push({id:Date.now(),name,lat,lng,demand});
+  document.getElementById('stopName').value='';
+  document.getElementById('stopLat').value='';
+  document.getElementById('stopLng').value='';
+  document.getElementById('stopDemand').value='';
+  renderStopList();drawMap();
+}
+function removeStop(id){stops=stops.filter(s=>s.id!==id);renderStopList();drawMap();}
+function clearStops(){stops=[];renderStopList();drawMap();}
+function renderStopList(){
+  document.getElementById('stopCount').textContent=stops.length;
+  document.getElementById('stopList').innerHTML=stops.map(s=>`
+    <div class="item-row">
+      <div class="stop-dot" style="background:${demandColor(s.demand)}"></div>
+      <span class="label">${s.name} <span style="color:var(--text3);font-size:10px">${s.lat.toFixed(4)},${s.lng.toFixed(4)} ${s.demand}명</span></span>
+      <button class="del" onclick="removeStop(${s.id})">×</button>
+    </div>`).join('');
+}
+function demandColor(d){return d>900?'#f87171':d>600?'#f59e0b':d>300?'#4f8ef7':'#6b7280';}
+
+// ══════════════════════════════════════════
+//  ROUTE CRUD
+// ══════════════════════════════════════════
+function addRoute(){
+  const name=document.getElementById('routeName').value.trim();
+  const stopsRaw=document.getElementById('routeStops').value.trim();
+  const interval=parseInt(document.getElementById('routeInterval').value)||15;
+  const type=document.getElementById('routeType').value;
+  if(!name){alert('노선 이름을 입력해주세요');return;}
+  if(!stopsRaw){alert('경유 정류장을 입력해주세요');return;}
+  routes.push({id:Date.now(),name,stops:stopsRaw.split(',').map(s=>s.trim()).filter(Boolean),interval,type});
+  document.getElementById('routeName').value='';
+  document.getElementById('routeStops').value='';
+  renderRouteList();drawMap();
+}
+function removeRoute(id){routes=routes.filter(r=>r.id!==id);hiddenRouteIds.delete(id);renderRouteList();drawMap();}
+function clearRoutes(){routes=[];hiddenRouteIds.clear();renderRouteList();drawMap();}
+
+// ── 노선 개별 표시 제어 ────────────────────────────────────
+function toggleRouteVisibility(id){
+  if(hiddenRouteIds.has(id)) hiddenRouteIds.delete(id);
+  else hiddenRouteIds.add(id);
+  renderRouteList();drawMap();
+}
+function soloRoute(id){
+  hiddenRouteIds=new Set(routes.map(r=>r.id).filter(rid=>rid!==id));
+  renderRouteList();drawMap();
+}
+function showAllRoutes(){
+  hiddenRouteIds.clear();renderRouteList();drawMap();
+}
+// ─────────────────────────────────────────────────────────
+
+function renderRouteList(){
+  document.getElementById('routeCount').textContent=routes.length;
+  document.getElementById('routeList').innerHTML=routes.map((r,i)=>{
+    const col=r.type==='before'?COLORS_BEFORE[i%4]:COLORS_AFTER[i%4];
+    const hidden=hiddenRouteIds.has(r.id);
+    const dot=hidden?'#4b5563':col;
+    return `<div class="item-row${hidden?' route-hidden':''}">
+      <button class="eye-btn${hidden?' off':''}" onclick="toggleRouteVisibility(${r.id})" title="${hidden?'표시':'숨기기'}">${hidden?'○':'●'}</button>
+      <div class="stop-dot" style="background:${dot};border-radius:2px;width:12px;height:4px;margin-top:3px"></div>
+      <span class="label" style="${hidden?'text-decoration:line-through;color:var(--text3)':''}">
+        ${r.name} <span style="color:var(--text3);font-size:10px">${r.type==='before'?'개편전':'개편후'} ${r.interval}분</span>
+      </span>
+      <button class="solo-btn" onclick="soloRoute(${r.id})">단독</button>
+      <button class="del" onclick="removeRoute(${r.id})">×</button>
+    </div>`;
+  }).join('');
+}
+
+// ══════════════════════════════════════════
+//  SIMULATION ENGINE (시뮬레이션 로직 — 원본과 동일)
+// ══════════════════════════════════════════
+function runSimulation(){
+  if(stops.length<2){alert('정류장을 2개 이상 등록해주세요.');return;}
+  const beforeRoutes=routes.filter(r=>r.type==='before');
+  const afterRoutes=routes.filter(r=>r.type==='after');
+  if(!beforeRoutes.length||!afterRoutes.length){alert('개편 전/후 노선이 각각 1개 이상 필요합니다.');return;}
+  const btn=document.getElementById('simBtn');
+  btn.textContent='시뮬레이션 중...';btn.disabled=true;btn.classList.add('pulsing');
+  const pb=document.getElementById('progressBar');pb.style.display='block';
+  const pf=document.getElementById('progressFill');pf.style.width='0%';
+  let p=0;
+  const iv=setInterval(()=>{p+=2;pf.style.width=p+'%';if(p>=100){clearInterval(iv);finishSim();}},20);
+  function finishSim(){
+    btn.textContent='▶ 시뮬레이션 실행';btn.disabled=false;btn.classList.remove('pulsing');
+    pb.style.display='none';pf.style.width='0%';
+    const N=parseInt(document.getElementById('simPassengers').value)||1000;
+    const avgDist=parseInt(document.getElementById('simAvgDist').value)||4;
+    simResults={before:computeMetrics(beforeRoutes,N,avgDist),after:computeMetrics(afterRoutes,N,avgDist)};
+    renderResults();switchView('result');
+  }
+}
+
+function computeMetrics(routeSet,N,avgDist){
+  const sc=stops.length;
+  const served=new Set();
+  routeSet.forEach(r=>r.stops.forEach(n=>{if(stops.find(s=>s.name===n))served.add(n);}));
+  const coverage=served.size/sc;
+  const hd=stops.filter(s=>s.demand>700).map(s=>s.name);
+  const hdCoverage=hd.length>0?hd.filter(n=>served.has(n)).length/hd.length:0;
+  const avgInterval=routeSet.reduce((a,r)=>a+r.interval,0)/routeSet.length;
+  const waitTime=avgInterval/2;
+  let totalTravel=0,totalTransfers=0,directCount=0;
+  const travelDist=[];
+  for(let i=0;i<N;i++){
+    const src=stops[Math.floor(Math.random()*sc)];
+    const dist=Math.min(sc-1,1+Math.floor(Math.random()*avgDist*1.5));
+    const dst=stops[(stops.indexOf(src)+dist)%sc];
+    let direct=routeSet.find(r=>{const si=r.stops.indexOf(src.name),di=r.stops.indexOf(dst.name);return si!==-1&&di!==-1&&di>si;});
+    let transfers=0,travel=0;
+    if(direct){
+      const si=direct.stops.indexOf(src.name),di=direct.stops.indexOf(dst.name);
+      travel=(di-si)*2.5+waitTime;directCount++;
+    }else{
+      let found=false;
+      outer:for(const r1 of routeSet){
+        if(!r1.stops.includes(src.name))continue;
+        for(const r2 of routeSet){
+          if(r1===r2||!r2.stops.includes(dst.name))continue;
+          const mid=r1.stops.find(s=>r2.stops.includes(s)&&s!==src.name);
+          if(mid){
+            const si1=r1.stops.indexOf(src.name),mi1=r1.stops.indexOf(mid);
+            const mi2=r2.stops.indexOf(mid),di2=r2.stops.indexOf(dst.name);
+            if(mi1>si1&&di2>mi2){travel=(mi1-si1)*2.5+waitTime+(di2-mi2)*2.5+waitTime;transfers=1;found=true;break outer;}
+          }
+        }
+      }
+      if(!found){travel=dist*3+waitTime*2;transfers=1;}
+    }
+    totalTravel+=travel;totalTransfers+=transfers;travelDist.push(Math.round(travel));
+  }
+  const crowd=routeSet.map(r=>{
+    const total=r.stops.reduce((a,n)=>{const s=stops.find(x=>x.name===n);return a+(s?s.demand:0);},0);
+    return{name:r.name,crowd:Math.min(100,Math.round(total/r.interval/12))};
+  });
+  const buckets=[0,0,0,0,0];
+  travelDist.forEach(t=>t<10?buckets[0]++:t<20?buckets[1]++:t<30?buckets[2]++:t<40?buckets[3]++:buckets[4]++);
+  return{avgTravel:Math.round(totalTravel/N*10)/10,avgTransfers:Math.round(totalTransfers/N*100)/100,coverage:Math.round(coverage*1000)/10,waitTime:Math.round(waitTime*10)/10,directRatio:Math.round(directCount/N*1000)/10,hdCoverage:Math.round(hdCoverage*1000)/10,crowd,travelBuckets:buckets,served:[...served]};
+}
+
+// ══════════════════════════════════════════
+//  RENDER RESULTS
+// ══════════════════════════════════════════
+function renderResults(){
+  const{before:B,after:A}=simResults;
+  document.getElementById('noResultMsg').style.display='none';
+  document.getElementById('resultContent').style.display='block';
+  function setMetric(key,bVal,aVal,unit,lowerBetter){
+    document.getElementById(`s-${key}-before`).textContent=bVal+unit;
+    document.getElementById(`s-${key}-after`).textContent=aVal+unit;
+    const delta=aVal-bVal,good=lowerBetter?delta<0:delta>0,sign=delta>0?'+':'';
+    const el=document.getElementById(`s-${key}-delta`);
+    el.textContent=`${sign}${Math.round(delta*10)/10}${unit} ${good?'개선':'악화'}`;
+    el.className='stat-delta '+(good?'delta-good':Math.abs(delta)<0.01?'delta-neu':'delta-bad');
+  }
+  setMetric('travel',B.avgTravel,A.avgTravel,'분',true);
+  setMetric('transfer',B.avgTransfers,A.avgTransfers,'회',true);
+  setMetric('coverage',B.coverage,A.coverage,'%',false);
+  setMetric('wait',B.waitTime,A.waitTime,'분',true);
+  setMetric('direct',B.directRatio,A.directRatio,'%',false);
+  setMetric('highd',B.hdCoverage,A.hdCoverage,'%',false);
+  const labels=['~10분','10~20','20~30','30~40','40분+'];
+  const maxAll=Math.max(...B.travelBuckets,...A.travelBuckets)||1;
+  document.getElementById('travelChart').innerHTML=labels.map((l,i)=>`
+    <div class="bar-row"><span class="bar-label">${l}</span>
+      <div style="flex:1;display:flex;flex-direction:column;gap:2px">
+        <div style="display:flex;align-items:center;gap:4px"><div style="height:8px;width:${B.travelBuckets[i]/maxAll*100}%;background:#4f8ef7;border-radius:2px;min-width:2px"></div><span style="font-size:9px;color:var(--text3)">${B.travelBuckets[i]}</span></div>
+        <div style="display:flex;align-items:center;gap:4px"><div style="height:8px;width:${A.travelBuckets[i]/maxAll*100}%;background:#22d3b0;border-radius:2px;min-width:2px"></div><span style="font-size:9px;color:var(--text3)">${A.travelBuckets[i]}</span></div>
+      </div></div>`).join('')+'<div style="display:flex;gap:12px;margin-top:6px;font-size:10px"><span style="color:#4f8ef7">■ 전</span><span style="color:#22d3b0">■ 후</span></div>';
+  document.getElementById('crowdChart').innerHTML=A.crowd.map(r=>`
+    <div class="bar-row"><span class="bar-label">${r.name}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${r.crowd}%;background:${r.crowd>80?'#f87171':r.crowd>50?'#f59e0b':'#4ade80'}"></div></div>
+      <span class="bar-val">${r.crowd}%</span></div>`).join('');
+  const goals=[
+    {label:'이동시간 단축',achieved:A.avgTravel<B.avgTravel,val:Math.round((B.avgTravel-A.avgTravel)/B.avgTravel*100)+'%'},
+    {label:'환승 감소',achieved:A.avgTransfers<B.avgTransfers,val:Math.round((B.avgTransfers-A.avgTransfers)/B.avgTransfers*100)+'%'},
+    {label:'커버리지 증가',achieved:A.coverage>B.coverage,val:'+'+Math.round(A.coverage-B.coverage)+'%p'},
+    {label:'배차 개선',achieved:A.waitTime<B.waitTime,val:Math.round((B.waitTime-A.waitTime)/B.waitTime*100)+'%'},
+  ];
+  document.getElementById('goalChart').innerHTML=goals.map(g=>`
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:16px">${g.achieved?'✅':'❌'}</span>
+      <span style="font-size:12px;flex:1;color:var(--text2)">${g.label}</span>
+      <span style="font-size:11px;font-family:var(--mono);color:${g.achieved?'var(--green)':'var(--red)'}">${g.val}</span>
+    </div>`).join('');
+  const imp=[];
+  if(A.avgTravel<B.avgTravel)imp.push(`평균 이동시간 <b>${B.avgTravel}분 → ${A.avgTravel}분</b>`);
+  if(A.avgTransfers<B.avgTransfers)imp.push(`환승 횟수 <b>${B.avgTransfers}회 → ${A.avgTransfers}회</b>`);
+  if(A.coverage>B.coverage)imp.push(`노선 커버리지 <b>${B.coverage}% → ${A.coverage}%</b>`);
+  if(A.waitTime<B.waitTime)imp.push(`평균 대기시간 <b>${B.waitTime}분 → ${A.waitTime}분</b>`);
+  const warn=[];
+  if(A.avgTravel>=B.avgTravel)warn.push('이동시간이 단축되지 않았습니다. 주요 O-D 직통 노선 추가를 검토하세요.');
+  if(A.coverage<B.coverage)warn.push('커버리지가 줄었습니다. 폐선 구간을 지선으로 보완하세요.');
+  if(A.avgTransfers>=B.avgTransfers)warn.push('환승 횟수가 줄지 않았습니다. 간선 노선의 직통 구간 확대를 고려하세요.');
+  let c='';
+  if(imp.length)c+=`<b style="color:var(--teal)">✅ 개선된 사항</b><br>${imp.map(i=>`• ${i}`).join('<br>')}<br><br>`;
+  if(warn.length)c+=`<b style="color:var(--amber)">⚠ 보완이 필요한 사항</b><br>${warn.map(w=>`• ${w}`).join('<br>')}<br><br>`;
+  c+=`<b style="color:var(--text2)">📋 종합 의견</b><br>`;
+  c+=imp.length>=3?'개편안이 대부분의 목표를 달성하고 있습니다.':imp.length>=1?'일부 목표는 달성했으나 개선 여지가 있습니다.':'현재 개편안으로는 목표 달성이 어렵습니다. 노선 구성을 재검토하세요.';
+  document.getElementById('aiComment').innerHTML=c;
+  document.getElementById('routeAnalysisTbody').innerHTML=routes.map(r=>{
+    const sc2=r.stops.filter(n=>stops.find(s=>s.name===n)).length;
+    const avgD=r.stops.reduce((a,n)=>{const s=stops.find(x=>x.name===n);return a+(s?s.demand:0);},0)/r.stops.length;
+    const crowd=Math.min(100,Math.round(avgD/r.interval/12));
+    return `<tr><td style="color:var(--text);font-weight:500">${r.name}</td>
+      <td><span style="font-size:10px;padding:2px 7px;border-radius:12px;background:${r.type==='before'?'rgba(79,142,247,.2)':'rgba(34,211,176,.2)'};color:${r.type==='before'?'#4f8ef7':'#22d3b0'}">${r.type==='before'?'개편 전':'개편 후'}</span></td>
+      <td>${sc2}</td><td>${r.interval}분</td><td>${Math.round(avgD).toLocaleString()}</td>
+      <td><div style="display:flex;align-items:center;gap:6px"><div style="width:50px;height:8px;background:var(--surface3);border-radius:4px;overflow:hidden"><div style="height:100%;width:${crowd}%;background:${crowd>80?'#f87171':crowd>50?'#f59e0b':'#4ade80'}"></div></div>${crowd}%</div></td>
+      <td>${Math.round(sc2/r.stops.length*100)}%</td></tr>`;
+  }).join('');
+  renderCoverageGrid('covBefore',simResults.before.served);
+  renderCoverageGrid('covAfter',simResults.after.served);
+  const topStops=stops.slice().sort((a,b)=>b.demand-a.demand).slice(0,8);
+  const maxD=Math.max(...topStops.map(s=>s.demand));
+  document.getElementById('accessChart').innerHTML=topStops.map(s=>{
+    const bS=simResults.before.served.includes(s.name),aS=simResults.after.served.includes(s.name);
+    return `<div class="bar-row"><span class="bar-label" style="font-size:9px">${s.name}</span>
+      <div class="bar-track"><div class="bar-fill" style="width:${s.demand/maxD*100}%;background:${aS?'#22d3b0':'#f87171'}"></div></div>
+      <span style="font-size:9px;color:var(--text3);width:40px">${bS?'✓':'✗'}→${aS?'✓':'✗'}</span></div>`;
+  }).join('');
+}
+function renderCoverageGrid(elId,servedList){
+  document.getElementById(elId).innerHTML=stops.slice(0,64).map(s=>
+    `<div class="coverage-cell" title="${s.name}" style="background:${servedList.includes(s.name)?demandColor(s.demand):'var(--surface3)'}"></div>`
+  ).join('');
+}
+
+// ══════════════════════════════════════════
+//  VIEW SWITCHING
+// ══════════════════════════════════════════
+function switchView(v){
+  document.getElementById('setupView').style.display=v==='setup'?'flex':'none';
+  document.getElementById('resultView').style.display=v==='result'?'flex':'none';
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>b.classList.toggle('on',i===['setup','result'].indexOf(v)));
+  if(v==='setup'&&leafletMap) setTimeout(()=>leafletMap.invalidateSize(),50);
+}
+function switchMap(mode){
+  mapMode=mode;
+  document.querySelectorAll('#mapTabs .ct-btn').forEach((b,i)=>b.classList.toggle('on',i===['both','before','after'].indexOf(mode)));
+  drawMap();
+}
+function switchResult(tab){
+  document.querySelectorAll('#rp-summary,#rp-routes,#rp-coverage').forEach(p=>p.classList.remove('on'));
+  document.getElementById('rp-'+tab).classList.add('on');
+  document.querySelectorAll('#resultView .ct-btn').forEach((b,i)=>b.classList.toggle('on',i===['summary','routes','coverage'].indexOf(tab)));
+}
+
+window.addEventListener('load',()=>{ initMap(); });
+</script>
+</body>
+</html>
