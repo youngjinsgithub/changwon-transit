@@ -1,0 +1,151 @@
+# ============================================================================
+# 비밀·환경변수
+# ============================================================================
+.env
+.env.local
+.env.*.local
+config/api_keys.yaml
+
+# ============================================================================
+# 데이터 (원본·캐시·대용량은 차단, 팀 공유용 가공본만 화이트리스트)
+# ============================================================================
+
+# 기본: raw 하위 전부 차단 (디렉토리 자체는 두고 내용만 차단해야 화이트리스트 가능)
+data/raw/*
+!data/raw/.gitkeep
+
+# raw/stcis 디렉토리 자체는 풀어주고, 그 안의 것을 다시 선택적으로 허용
+!data/raw/stcis/
+data/raw/stcis/*
+!data/raw/stcis/COLLECTION_GUIDE.md
+!data/raw/stcis/stop_mapping.csv
+!data/raw/stcis/stops_by_name_*.csv
+!data/raw/stcis/ars_list_*.txt
+# (위에서 data/raw/stcis/* 가 이미 안 보이므로 명시 차단 불필요. 안전 차원 명시:)
+data/raw/stcis/responses/
+data/raw/stcis/*checkpoint*.json
+data/raw/stcis/*.log
+data/raw/stcis/probe_*.txt
+
+# raw/population: 화이트리스트 (mois CSV 도 push 허용 — 1.3MB)
+!data/raw/population/
+data/raw/population/*
+!data/raw/population/.gitkeep
+!data/raw/population/comparison_report.md
+!data/raw/population/README.md
+!data/raw/population/mois_*.csv
+
+# raw/stops: 국토부 정류장 CSV push 허용 (20MB, 재현용)
+!data/raw/stops/
+data/raw/stops/*
+!data/raw/stops/국토교통부_*.csv
+
+# processed: CSV 는 기본 차단, 팀 공유할 메타 산출물만 허용
+# stcis_boarding_long.csv 는 .gz 압축본만 (원본은 127MB → GitHub 100MB 한도 초과)
+data/processed/*.csv
+data/processed/*.parquet
+!data/processed/priority_routes_12.csv
+!data/processed/priority_routes_stops.csv
+!data/processed/routes_ranked.csv
+!data/processed/scenario_A_result.csv
+!data/processed/stcis_boarding_long.csv.gz
+!data/processed/.gitkeep
+
+# processed/maps 의 folium HTML 은 팀 공유 허용
+!data/processed/maps/
+!data/processed/maps/*.html
+
+# geo: 행정동 GeoJSON push 허용 (33MB)
+!data/geo/
+data/geo/*
+!data/geo/.gitkeep
+!data/geo/HangJeongDong_*.geojson
+
+# 대용량 지리 데이터 (shp 등)
+*.shp
+*.dbf
+*.shx
+*.prj
+*.cpg
+
+# ============================================================================
+# Docker / DB 영속 볼륨
+# ============================================================================
+postgis_data/
+pgadmin_data/
+
+# ============================================================================
+# Python
+# ============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# 가상환경
+.venv/
+venv/
+env/
+ENV/
+
+# 패키지 도구
+.pip-cache/
+pip-log.txt
+
+# ============================================================================
+# Jupyter
+# ============================================================================
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/*
+*.ipynb_checkpoints
+
+# ============================================================================
+# 테스트 / 캐시
+# ============================================================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.cache/
+*.cover
+
+# ============================================================================
+# SQLite (혹시 임시로 사용 시)
+# ============================================================================
+*.db
+*.sqlite
+*.sqlite3
+
+# ============================================================================
+# 로그
+# ============================================================================
+logs/
+*.log
+
+# ============================================================================
+# OS
+# ============================================================================
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ============================================================================
+# IDE / Editor
+# ============================================================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============================================================================
+# Claude Code (개인별 설정·트랜스크립트는 공유 X)
+# ============================================================================
+.claude/settings.local.json
