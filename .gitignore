@@ -40,6 +40,11 @@ data/raw/population/*
 data/raw/stops/*
 !data/raw/stops/국토교통부_*.csv
 
+# raw/vehicle: KOSIS 1인당 자동차 등록대수 (Step 0 도시 선정용, 13KB)
+!data/raw/vehicle/
+data/raw/vehicle/*
+!data/raw/vehicle/kosis_per_capita_*.xlsx
+
 # processed: CSV 는 기본 차단, 팀 공유할 메타 산출물만 허용
 # stcis_boarding_long.csv 는 .gz 압축본만 (원본은 127MB → GitHub 100MB 한도 초과)
 data/processed/*.csv
@@ -48,6 +53,7 @@ data/processed/*.parquet
 !data/processed/priority_routes_stops.csv
 !data/processed/routes_ranked.csv
 !data/processed/scenario_A_result.csv
+!data/processed/step0_region_ranking.csv
 !data/processed/stcis_boarding_long.csv.gz
 !data/processed/.gitkeep
 
