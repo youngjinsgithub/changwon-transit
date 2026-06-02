@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>창원시 버스 노선 개편 효과 — 시각화</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0f1117;--s1:#181c27;--s2:#1e2335;--s3:#252a3d;
+  --b1:#2a3050;--b2:#3a4570;
+  --blue:#4f8ef7;--teal:#22d3b0;--amber:#f59e0b;
+  --red:#f87171;--green:#4ade80;--purple:#a78bfa;
+  --text:#e8eaf6;--t2:#9fa8c9;--t3:#5a6490;
+  --font:'Noto Sans KR',sans-serif;--mono:'DM Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+
+/* ── 헤더 ── */
+header{height:52px;background:var(--s1);border-bottom:1px solid var(--b1);display:flex;align-items:center;padding:0 20px;gap:12px;flex-shrink:0;z-index:200}
+header h1{font-size:14px;font-weight:700;letter-spacing:-.3px}
+.pill{font-size:10px;padding:2px 9px;border-radius:20px;font-weight:600}
+.pill-blue{background:rgba(79,142,247,.2);color:var(--blue);border:1px solid rgba(79,142,247,.3)}
+.pill-teal{background:rgba(34,211,176,.15);color:var(--teal);border:1px solid rgba(34,211,176,.3)}
+.pill-green{background:rgba(74,222,128,.15);color:var(--green);border:1px solid rgba(74,222,128,.3)}
+.hdr-total{margin-left:auto;display:flex;gap:16px;font-size:11px;color:var(--t2)}
+.hdr-kpi{display:flex;align-items:center;gap:5px}
+.hdr-kpi b{color:var(--teal);font-family:var(--mono);font-size:12px}
+
+/* ── 메인 레이아웃 ── */
+.main{flex:1;display:grid;grid-template-columns:300px 1fr;overflow:hidden}
+
+/* ── 사이드바 ── */
+.sidebar{background:var(--s1);border-right:1px solid var(--b1);overflow-y:auto;display:flex;flex-direction:column}
+.sb-head{padding:12px 14px;border-bottom:1px solid var(--b1);font-size:11px;font-weight:700;letter-spacing:.07em;color:var(--t3);text-transform:uppercase}
+.route-card{padding:12px 14px;border-bottom:1px solid var(--b1);cursor:pointer;transition:background .15s;position:relative}
+.route-card:hover{background:var(--s2)}
+.route-card.active{background:var(--s2);border-left:3px solid var(--teal)}
+.rc-top{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.rc-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.rc-name{font-size:13px;font-weight:700}
+.rc-sub{font-size:10px;color:var(--t3);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rc-algo{font-size:9px;padding:1px 6px;border-radius:3px;font-weight:700;flex-shrink:0}
+.rc-metrics{display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px}
+.rc-m{background:var(--s3);border-radius:4px;padding:5px 7px}
+.rc-ml{font-size:9px;color:var(--t3);margin-bottom:2px}
+.rc-mv{font-size:11px;font-family:var(--mono);font-weight:600}
+.rc-mv.good{color:var(--teal)}
+.rc-mv.neu{color:var(--t2)}
+.delta-badge{font-size:9px;color:var(--green);margin-left:3px}
+
+/* ── 지도 영역 ── */
+.map-area{position:relative;overflow:hidden}
+#map{width:100%;height:100%}
+
+/* OSRM 로딩 */
+.map-loading{position:absolute;inset:0;background:rgba(15,17,23,.8);backdrop-filter:blur(4px);display:none;align-items:center;justify-content:center;flex-direction:column;gap:10px;z-index:2000;pointer-events:none}
+.spinner{width:32px;height:32px;border:3px solid var(--b2);border-top-color:var(--teal);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* 범례 */
+.legend{position:absolute;bottom:20px;right:12px;background:rgba(15,17,23,.92);backdrop-filter:blur(8px);border:1px solid var(--b1);border-radius:8px;padding:10px 12px;font-size:10px;z-index:1000}
+.leg-row{display:flex;align-items:center;gap:6px;margin-bottom:4px}
+.leg-row:last-child{margin-bottom:0}
+.leg-line{width:22px;height:3px;border-radius:2px}
+
+/* 선택 디테일 팝업 */
+.detail-panel{position:absolute;top:12px;right:12px;width:260px;background:rgba(24,28,39,.97);backdrop-filter:blur(12px);border:1px solid var(--b2);border-radius:10px;padding:14px;z-index:1500;display:none}
+.dp-close{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--t3);cursor:pointer;font-size:16px;line-height:1}
+.dp-close:hover{color:var(--text)}
+.dp-title{font-size:14px;font-weight:700;margin-bottom:4px}
+.dp-route{font-size:11px;color:var(--t2);margin-bottom:10px}
+.dp-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.dp-card{background:var(--s2);border-radius:6px;padding:8px 10px}
+.dp-cl{font-size:9px;color:var(--t3);margin-bottom:3px}
+.dp-cv{font-size:14px;font-family:var(--mono);font-weight:700}
+.dp-cv.teal{color:var(--teal)}
+.dp-cv.amber{color:var(--amber)}
+.dp-sep{border-top:1px solid var(--b1);margin:8px 0}
+.dp-headway{display:flex;align-items:center;gap:8px}
+.dp-hw-val{font-size:18px;font-family:var(--mono);font-weight:700}
+.dp-arrow{color:var(--t3);font-size:14px}
+.dp-tag{font-size:10px;padding:2px 7px;border-radius:12px;font-weight:600}
+
+/* 하단 바 */
+.bottom-bar{height:68px;background:var(--s1);border-top:1px solid var(--b1);display:grid;grid-template-columns:repeat(4,1fr);flex-shrink:0}
+.bb-item{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;border-right:1px solid var(--b1);padding:0 12px}
+.bb-item:last-child{border-right:none}
+.bb-label{font-size:10px;color:var(--t3);letter-spacing:.04em}
+.bb-val{font-size:22px;font-family:var(--mono);font-weight:700}
+.bb-unit{font-size:10px;color:var(--t2);margin-left:2px}
+
+/* 뷰 토글 탭 */
+.view-toggle{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:1000;display:flex;gap:2px;background:rgba(15,17,23,.88);backdrop-filter:blur(10px);border:1px solid var(--b2);border-radius:9px;padding:4px}
+.vt-btn{padding:5px 16px;border-radius:6px;border:none;background:transparent;color:var(--t2);font-size:12px;font-family:var(--font);cursor:pointer;transition:all .15s;white-space:nowrap;font-weight:500}
+.vt-btn:hover{color:var(--text)}
+.vt-btn.on-before{background:#1e2d4a;color:var(--blue);font-weight:700}
+.vt-btn.on-both{background:#1a2e2a;color:var(--teal);font-weight:700}
+.vt-btn.on-after{background:#1e2a1a;color:var(--green);font-weight:700}
+
+/* 줌 컨트롤 */
+.zoom-ctrl{position:absolute;top:12px;left:12px;z-index:1000;display:flex;flex-direction:column;gap:4px}
+.zoom-ctrl button{width:30px;height:30px;background:rgba(15,17,23,.9);backdrop-filter:blur(8px);border:1px solid var(--b1);border-radius:6px;color:var(--text);cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+.zoom-ctrl button:hover{background:var(--s2)}
+
+/* Leaflet 커스텀 */
+.leaflet-popup-content-wrapper{background:rgba(15,17,23,.97)!important;border:1px solid #3a4570!important;color:var(--text)!important;border-radius:8px!important;box-shadow:0 4px 20px rgba(0,0,0,.7)!important}
+.leaflet-popup-tip-container{display:none}
+.leaflet-popup-close-button{color:#5a6490!important;font-size:18px!important;top:6px!important;right:8px!important}
+.leaflet-popup-content{margin:10px 14px!important;font-family:var(--font)!important;font-size:12px!important}
+.stop-tt{background:rgba(15,17,23,.92)!important;border:1px solid #2a3050!important;color:#e8eaf6!important;font-size:10px!important;padding:2px 6px!important;border-radius:4px!important;box-shadow:none!important;white-space:nowrap!important}
+.stop-tt::before{display:none!important}
+.leaflet-tile{filter:brightness(.82) saturate(.6) hue-rotate(190deg)!important}
+.leaflet-container{background:#1a1f2e!important}
+.leaflet-control-attribution{font-size:9px!important;background:rgba(15,17,23,.7)!important;color:var(--t3)!important}
+.leaflet-control-attribution a{color:var(--t3)!important}
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+</style>
+</head>
+<body>
+
+<header>
+  <div style="width:26px;height:26px;background:#1d4ed8;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px">🚌</div>
+  <h1>창원시 버스 노선 개편 효과</h1>
+  <span class="pill pill-blue">7개 우선 노선</span>
+  <span class="pill pill-teal">OSRM 실경로</span>
+  <span class="pill pill-green">추가예산 없음</span>
+  <div class="hdr-total">
+    <div class="hdr-kpi">유류비 절감 <b id="hdr-fuel">--</b><span style="font-size:10px;color:var(--t3)">억원/년</span></div>
+    <div class="hdr-kpi">CO₂ 감축 <b id="hdr-co2">--</b><span style="font-size:10px;color:var(--t3)">톤/년</span></div>
+    <div class="hdr-kpi">절감 거리 <b id="hdr-km">--</b><span style="font-size:10px;color:var(--t3)">만km/년</span></div>
+  </div>
+</header>
+
+<div class="main">
+  <!-- ── 사이드바 ── -->
+  <aside class="sidebar">
+    <div class="sb-head">7개 우선순위 노선 — 개편 전/후 비교</div>
+    <div id="routeCards"></div>
+  </aside>
+
+  <!-- ── 지도 ── -->
+  <div class="map-area">
+    <div id="map"></div>
+
+    <!-- OSRM 로딩 -->
+    <div class="map-loading" id="mapLoading">
+      <div class="spinner"></div>
+      <span style="font-size:12px;color:var(--t2)">OSRM 도로 경로 계산 중...</span>
+      <span id="loadProg" style="font-size:11px;color:var(--t3)"></span>
+    </div>
+
+    <!-- 뷰 토글 탭 -->
+    <div class="view-toggle">
+      <button class="vt-btn on-before" id="vt-before" onclick="setView('before')">── 개편 전</button>
+      <button class="vt-btn" id="vt-both"   onclick="setView('both')">⇄ 비교</button>
+      <button class="vt-btn" id="vt-after"  onclick="setView('after')">━━ 개편 후</button>
+    </div>
+
+    <!-- 줌 버튼 -->
+    <div class="zoom-ctrl">
+      <button onclick="map.zoomIn()">+</button>
+      <button onclick="map.zoomOut()">−</button>
+      <button onclick="resetView()" title="전체 보기">⊙</button>
+    </div>
+
+    <!-- 선택 디테일 -->
+    <div class="detail-panel" id="detailPanel">
+      <button class="dp-close" onclick="closeDetail()">×</button>
+      <div class="dp-title" id="dp-name">--</div>
+      <div class="dp-route" id="dp-route">--</div>
+      <div class="dp-grid">
+        <div class="dp-card"><div class="dp-cl">유류비 절감</div><div class="dp-cv teal" id="dp-fuel">--</div></div>
+        <div class="dp-card"><div class="dp-cl">CO₂ 감축</div><div class="dp-cv amber" id="dp-co2">--</div></div>
+        <div class="dp-card"><div class="dp-cl">절감 거리</div><div class="dp-cv" id="dp-km" style="color:var(--purple)">--</div></div>
+        <div class="dp-card"><div class="dp-cl">개편 유형</div><div class="dp-cv" id="dp-type" style="font-size:10px;color:var(--t2)">--</div></div>
+      </div>
+      <div class="dp-sep"></div>
+      <div class="dp-cl" style="margin-bottom:6px">배차간격 개선</div>
+      <div class="dp-headway">
+        <div><div style="font-size:9px;color:var(--t3)">현행</div><div class="dp-hw-val" style="color:var(--t2)" id="dp-hb">--</div></div>
+        <div class="dp-arrow">→</div>
+        <div><div style="font-size:9px;color:var(--teal)">개편 후</div><div class="dp-hw-val" style="color:var(--teal)" id="dp-ha">--</div></div>
+        <div style="margin-left:auto"><span class="dp-tag" id="dp-delta" style="background:rgba(74,222,128,.15);color:var(--green)">--</span></div>
+      </div>
+    </div>
+
+    <!-- 범례 -->
+    <div class="legend" id="legendBox">
+      <div style="font-size:10px;font-weight:700;color:var(--t3);margin-bottom:6px;letter-spacing:.04em">범례</div>
+      <div class="leg-row" id="leg-before"><div style="width:22px;border-top:2px dashed #6b7280"></div><span style="color:var(--t2)">개편 전 노선</span></div>
+      <div class="leg-row" id="leg-after"><div class="leg-line" style="background:#22d3b0"></div><span style="color:var(--t2)">개편 후 노선</span></div>
+      <div class="leg-row"><div style="width:9px;height:9px;border-radius:50%;background:#f59e0b;flex-shrink:0"></div><span style="color:var(--t2)">주요 정류장</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── 하단 집계 바 ── -->
+<div class="bottom-bar">
+  <div class="bb-item">
+    <div class="bb-label">연간 유류비 절감</div>
+    <div><span class="bb-val" style="color:var(--teal)" id="bb-fuel">0</span><span class="bb-unit">억원/년</span></div>
+  </div>
+  <div class="bb-item">
+    <div class="bb-label">연간 CO₂ 감축</div>
+    <div><span class="bb-val" style="color:var(--green)" id="bb-co2">0</span><span class="bb-unit">톤/년</span></div>
+  </div>
+  <div class="bb-item">
+    <div class="bb-label">연간 절감 거리</div>
+    <div><span class="bb-val" style="color:var(--purple)" id="bb-km">0</span><span class="bb-unit">만km/년</span></div>
+  </div>
+  <div class="bb-item">
+    <div class="bb-label">평균 배차 단축</div>
+    <div><span class="bb-val" style="color:var(--amber)" id="bb-hw">0</span><span class="bb-unit">분 단축</span></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+// ════════════════════════════════════════════════════════════════
+//  노선 데이터 — 실좌표 + 개편 효과 수치
+// ════════════════════════════════════════════════════════════════
+const ROUTES = [
+  {
+    id:'105', name:'105번', routeDesc:'덕동공영차고지 ↔ 대방동종점',
+    type:'간선버스', algo:'SA', algoLabel:'배차재편(41번형)', algoColor:'#f59e0b',
+    color:'#4f8ef7',
+    headwayBefore:32.5, headwayAfter:24.4,
+    fuelSaved:54844980, co2Saved:125.3, kmSaved:103917,
+    // 현행: 굴곡 경유 전 정류장
+    stops:[
+      {name:'덕동공영차고지', lat:35.13629, lng:128.56357},
+      {name:'해운초등학교',   lat:35.17577, lng:128.55865},
+      {name:'한우아파트',     lat:35.20105, lng:128.55957},
+      {name:'동중후문',       lat:35.22229, lng:128.57109},
+      {name:'창신대학교입구', lat:35.24846, lng:128.59841},
+      {name:'의창스포츠센터', lat:35.25853, lng:128.63311},
+      {name:'문성고등학교',   lat:35.23764, lng:128.66127},
+      {name:'상남도서관',     lat:35.21402, lng:128.69615},
+      {name:'대방동종점',     lat:35.20349, lng:128.70445},
+    ],
+    // 개편 후: 저수요 중간 정류장 제거 → 핵심 거점 급행화
+    stopsAfter:[
+      {name:'덕동공영차고지', lat:35.13629, lng:128.56357},
+      {name:'한우아파트',     lat:35.20105, lng:128.55957},
+      {name:'창신대학교입구', lat:35.24846, lng:128.59841},
+      {name:'의창스포츠센터', lat:35.25853, lng:128.63311},
+      {name:'상남도서관',     lat:35.21402, lng:128.69615},
+      {name:'대방동종점',     lat:35.20349, lng:128.70445},
+    ]
+  },
+  {
+    id:'3006', name:'3006번', routeDesc:'신항파출소 ↔ 국립창원대학교정문',
+    type:'좌석버스', algo:'SA', algoLabel:'배차재편(41번형)', algoColor:'#f59e0b',
+    color:'#22d3b0',
+    headwayBefore:57.7, headwayAfter:43.3,
+    fuelSaved:38997041, co2Saved:89.1, kmSaved:73889,
+    // 현행: 웅동2동 · 사도마을 우회
+    stops:[
+      {name:'신항파출소',         lat:35.09235, lng:128.78965},
+      {name:'웅동2동행정복지센터', lat:35.09953, lng:128.81512},
+      {name:'청안해오름',         lat:35.12035, lng:128.79139},
+      {name:'진해구청',           lat:35.13004, lng:128.70960},
+      {name:'냉천사거리',         lat:35.15361, lng:128.70524},
+      {name:'남산공원환승센터',   lat:35.20226, lng:128.69791},
+      {name:'대동백화점',         lat:35.21997, lng:128.69219},
+      {name:'시티7(가로변)',       lat:35.24122, lng:128.65334},
+      {name:'국립창원대학교정문', lat:35.24281, lng:128.69170},
+    ],
+    // 개편 후: 해안 우회 제거 → 진해~창원 직결
+    stopsAfter:[
+      {name:'신항파출소',         lat:35.09235, lng:128.78965},
+      {name:'청안해오름',         lat:35.12035, lng:128.79139},
+      {name:'진해구청',           lat:35.13004, lng:128.70960},
+      {name:'남산공원환승센터',   lat:35.20226, lng:128.69791},
+      {name:'시티7(가로변)',       lat:35.24122, lng:128.65334},
+      {name:'국립창원대학교정문', lat:35.24281, lng:128.69170},
+    ]
+  },
+  {
+    id:'3002', name:'3002번', routeDesc:'신항파출소 ↔ 마산대학교종점',
+    type:'좌석버스', algo:'SA+BRT', algoLabel:'배차재편+BRT연계(111번형)', algoColor:'#a78bfa',
+    color:'#fb923c',
+    headwayBefore:61.4, headwayAfter:49.1,
+    fuelSaved:28626155, co2Saved:65.4, kmSaved:54239,
+    // 현행: 내륙 우회하며 여러 정류장 경유
+    stops:[
+      {name:'신항파출소',      lat:35.09235, lng:128.78965},
+      {name:'청안해오름',      lat:35.12035, lng:128.79139},
+      {name:'이동119안전센터', lat:35.14991, lng:128.69787},
+      {name:'양곡전통시장',    lat:35.20188, lng:128.62848},
+      {name:'봉암동',          lat:35.22104, lng:128.59563},
+      {name:'메트로시티석전',  lat:35.22917, lng:128.57396},
+      {name:'마산대학교종점',  lat:35.26160, lng:128.50347},
+    ],
+    // 개편 후: 양곡 우회 제거 + BRT(창원산업선) 환승 연계로 단축
+    stopsAfter:[
+      {name:'신항파출소',      lat:35.09235, lng:128.78965},
+      {name:'이동119안전센터', lat:35.14991, lng:128.69787},
+      {name:'봉암동(BRT환승)', lat:35.22104, lng:128.59563},
+      {name:'마산대학교종점',  lat:35.26160, lng:128.50347},
+    ]
+  },
+  {
+    id:'212', name:'212번', routeDesc:'경남대·서중학교 ↔ 초소',
+    type:'지선버스', algo:'D*', algoLabel:'중복구간통폐합(113번형)', algoColor:'#60a5fa',
+    color:'#f472b6',
+    headwayBefore:44.9, headwayAfter:44.9,
+    fuelSaved:39967521, co2Saved:91.3, kmSaved:75728,
+    // 현행: 구시가지 굴곡 경유
+    stops:[
+      {name:'경남대·서중학교', lat:35.17917, lng:128.55847},
+      {name:'어시장',          lat:35.20376, lng:128.57615},
+      {name:'한일타운',        lat:35.23142, lng:128.58386},
+      {name:'한국전력',        lat:35.25087, lng:128.59931},
+      {name:'굴현고개',        lat:35.27731, lng:128.61609},
+      {name:'대천',            lat:35.30961, lng:128.60226},
+      {name:'영신아파트',      lat:35.33644, lng:128.60024},
+      {name:'초소',            lat:35.37813, lng:128.59486},
+    ],
+    // 개편 후: 어시장·한국전력·대천 우회 제거 → 직선화
+    stopsAfter:[
+      {name:'경남대·서중학교', lat:35.17917, lng:128.55847},
+      {name:'한일타운',        lat:35.23142, lng:128.58386},
+      {name:'굴현고개',        lat:35.27731, lng:128.61609},
+      {name:'영신아파트',      lat:35.33644, lng:128.60024},
+      {name:'초소',            lat:35.37813, lng:128.59486},
+    ]
+  },
+  {
+    id:'730', name:'730번', routeDesc:'덕동공영차고지 ↔ 창원대학교',
+    type:'좌석버스', algo:'D*', algoLabel:'경로직선화(113번형)', algoColor:'#60a5fa',
+    color:'#a78bfa',
+    headwayBefore:32.1, headwayAfter:32.1,
+    fuelSaved:31362516, co2Saved:71.6, kmSaved:59424,
+    // 현행: 마산합포구청 남하 후 역주행 형태로 회원동 경유
+    stops:[
+      {name:'덕동공영차고지', lat:35.13629, lng:128.56357},
+      {name:'마산합포구청',   lat:35.19480, lng:128.55740},
+      {name:'마산역',         lat:35.18860, lng:128.57450},
+      {name:'회원동',         lat:35.21000, lng:128.58700},
+      {name:'불모산역',       lat:35.20460, lng:128.64790},
+      {name:'창원대학교',     lat:35.24830, lng:128.69230},
+    ],
+    // 개편 후: 마산합포구청·회원동 우회 제거 → 마산역 직결 후 동진
+    stopsAfter:[
+      {name:'덕동공영차고지', lat:35.13629, lng:128.56357},
+      {name:'마산역',         lat:35.18860, lng:128.57450},
+      {name:'불모산역',       lat:35.20460, lng:128.64790},
+      {name:'창원대학교',     lat:35.24830, lng:128.69230},
+    ]
+  },
+  {
+    id:'160', name:'160번', routeDesc:'덕동공영차고지 ↔ 인의동터미널',
+    type:'간선버스', algo:'DRT', algoLabel:'수요응답형전환', algoColor:'#f87171',
+    color:'#34d399',
+    headwayBefore:40.6, headwayAfter:40.6,
+    fuelSaved:47870120, co2Saved:109.3, kmSaved:90701,
+    // 현행: 전 구간 고정 노선 운행
+    stops:[
+      {name:'덕동공영차고지',   lat:35.13629, lng:128.56357},
+      {name:'마산역',           lat:35.18860, lng:128.57450},
+      {name:'창원시청',         lat:35.22800, lng:128.68140},
+      {name:'남산공원환승센터', lat:35.20226, lng:128.69791},
+      {name:'인의동터미널',     lat:35.13500, lng:128.66800},
+    ],
+    // 개편 후: 주요 거점만 고정 운행, 중간 구간 수요응답(DRT)으로 전환
+    stopsAfter:[
+      {name:'덕동공영차고지(거점)', lat:35.13629, lng:128.56357},
+      {name:'창원시청(거점)',       lat:35.22800, lng:128.68140},
+      {name:'인의동터미널(거점)',   lat:35.13500, lng:128.66800},
+    ]
+  },
+  {
+    id:'770', name:'770번', routeDesc:'마산역종점 ↔ 시락정곡종점',
+    type:'지선버스', algo:'SA', algoLabel:'등하교집중배차(41번형)', algoColor:'#f59e0b',
+    color:'#fbbf24',
+    headwayBefore:53.6, headwayAfter:40.2,
+    fuelSaved:60103207, co2Saved:137.3, kmSaved:113880,
+    // 현행: 전 구간 동일 간격 운행
+    stops:[
+      {name:'마산역종점',     lat:35.23547, lng:128.57779},
+      {name:'오동동문화광장', lat:35.20646, lng:128.57650},
+      {name:'문화동',         lat:35.18458, lng:128.56023},
+      {name:'동전마을',       lat:35.15237, lng:128.51695},
+      {name:'해병전첩비',     lat:35.11301, lng:128.46318},
+      {name:'봉곡마을',       lat:35.10961, lng:128.41767},
+      {name:'동진대교',       lat:35.07293, lng:128.46228},
+      {name:'시락정곡종점',   lat:35.06003, lng:128.42511},
+    ],
+    // 개편 후: 등하교 시간대 급행 (중간 정류장 통과)
+    stopsAfter:[
+      {name:'마산역종점',   lat:35.23547, lng:128.57779},
+      {name:'문화동',       lat:35.18458, lng:128.56023},
+      {name:'해병전첩비',   lat:35.11301, lng:128.46318},
+      {name:'시락정곡종점', lat:35.06003, lng:128.42511},
+    ]
+  },
+];
+
+// ════════════════════════════════════════════════════════════════
+//  집계
+// ════════════════════════════════════════════════════════════════
+const TOTAL_FUEL = ROUTES.reduce((a,r)=>a+r.fuelSaved,0);
+const TOTAL_CO2  = ROUTES.reduce((a,r)=>a+r.co2Saved,0);
+const TOTAL_KM   = ROUTES.reduce((a,r)=>a+r.kmSaved,0);
+const AVG_HW_SAVE= ROUTES.reduce((a,r)=>a+(r.headwayBefore-r.headwayAfter),0)/ROUTES.length;
+
+// ════════════════════════════════════════════════════════════════
+//  지도 초기화
+// ════════════════════════════════════════════════════════════════
+const map = L.map('map',{center:[35.195,128.620],zoom:11,zoomControl:false});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution:'© OpenStreetMap contributors',maxZoom:19
+}).addTo(map);
+
+function resetView(){
+  map.setView([35.195,128.620],11);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  OSRM 경로 캐시 + 요청
+// ════════════════════════════════════════════════════════════════
+const routeCache = new Map();
+
+async function fetchOSRM(stops){
+  const key = stops.map(s=>`${s.lat.toFixed(4)},${s.lng.toFixed(4)}`).join('|');
+  if(routeCache.has(key)) return routeCache.get(key);
+  try{
+    const coords = stops.map(s=>`${s.lng},${s.lat}`).join(';');
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
+    const ctrl = new AbortController();
+    const tid = setTimeout(()=>ctrl.abort(), 12000);
+    const res = await fetch(url,{signal:ctrl.signal});
+    clearTimeout(tid);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    if(data.code==='Ok'&&data.routes[0]){
+      const latlngs = data.routes[0].geometry.coordinates.map(([lng,lat])=>[lat,lng]);
+      routeCache.set(key,latlngs);
+      return latlngs;
+    }
+  }catch(e){ console.warn('OSRM 실패, 직선 대체:', e.message); }
+  const fallback = stops.map(s=>[s.lat,s.lng]);
+  routeCache.set(key,fallback);
+  return fallback;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  레이어 관리
+// ════════════════════════════════════════════════════════════════
+const layers = {}; // id → {before, after, stopMarkers, labelBefore, labelAfter}
+let activeId = null;
+let currentView = 'before'; // 'before' | 'both' | 'after'
+
+async function drawAllRoutes(){
+  const loadEl = document.getElementById('mapLoading');
+  const progEl = document.getElementById('loadProg');
+  loadEl.style.display = 'flex';
+
+  let done = 0;
+  await Promise.all(ROUTES.map(async r=>{
+    // ── 개편 전 (점선, 회색 계열) ──
+    const latlngsBefore = await fetchOSRM(r.stops);
+    const polyBefore = L.polyline(latlngsBefore,{
+      color:'#6b7280', weight:2.5, opacity:0.75, dashArray:'9,6'
+    });
+
+    // ── 개편 후 (굵은 실선, 노선 컬러) — stopsAfter 사용 ──
+    const latlngsAfter = await fetchOSRM(r.stopsAfter);
+    const polyAfter = L.polyline(latlngsAfter,{
+      color:r.color, weight:5, opacity:0.93
+    });
+
+    // ── 정류장 마커: 개편 전(회색) + 개편 후(컬러) 별도 관리 ──
+    const mkMarkers = (stopList, color, isBefore) => stopList.map((s,i)=>{
+      const isTerminal = i===0 || i===stopList.length-1;
+      const m = L.circleMarker([s.lat,s.lng],{
+        radius: isTerminal?7:4,
+        fillColor: isBefore ? '#374151' : (isTerminal?color:'#1e2335'),
+        color: isBefore ? '#6b7280' : color,
+        weight: isTerminal?2:1.5,
+        opacity:1, fillOpacity: isTerminal?0.85:0.65
+      });
+      const tag = isBefore ? '현행' : '개편';
+      m.bindTooltip(`${s.name} <span style="color:${isBefore?'#9ca3af':color}">[${tag}]</span>`,
+        {permanent:false,direction:'top',className:'stop-tt'});
+      return m;
+    });
+    const stopMarkersBefore = mkMarkers(r.stops,     r.color, true);
+    const stopMarkersAfter  = mkMarkers(r.stopsAfter,r.color, false);
+
+    // ── 라벨 (개편 전 / 개편 후 각각) ──
+    const mkLabel = (latlngs, isBefore)=>{
+      const midPt = latlngs[Math.floor(latlngs.length/2)];
+      return L.marker(midPt,{
+        icon: L.divIcon({
+          html: isBefore
+            ? `<span style="background:#374151;color:#9ca3af;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;white-space:nowrap;display:inline-block;font-family:'DM Mono',monospace;border:1px dashed #6b7280">∙∙ ${r.name} 현행</span>`
+            : `<span style="background:${r.color};color:#000;padding:1px 7px;border-radius:3px;font-size:10px;font-weight:700;white-space:nowrap;display:inline-block;font-family:'DM Mono',monospace">${r.name} 개편</span>`,
+          className:'', iconAnchor:[-4,8]
+        }),
+        interactive:false
+      });
+    };
+    const labelBefore = mkLabel(latlngsBefore, true);
+    const labelAfter  = mkLabel(latlngsAfter,  false);
+
+    layers[r.id] = {
+      before:polyBefore, after:polyAfter,
+      stopMarkersBefore, stopMarkersAfter,
+      labelBefore, labelAfter
+    };
+
+    // 초기에는 개편 전만 표시 (currentView = 'before')
+    polyBefore.addTo(map);
+    labelBefore.addTo(map);
+    stopMarkersBefore.forEach(m=>m.addTo(map));
+
+    polyBefore.on('click',()=>selectRoute(r.id));
+    polyAfter.on('click', ()=>selectRoute(r.id));
+
+    done++;
+    progEl.textContent = `${done} / ${ROUTES.length} 노선 완료`;
+  }));
+
+  loadEl.style.display = 'none';
+}
+
+// ════════════════════════════════════════════════════════════════
+//  뷰 전환 — 'before' | 'both' | 'after'
+// ════════════════════════════════════════════════════════════════
+function setView(mode){
+  currentView = mode;
+
+  // 탭 버튼 강조
+  ['before','both','after'].forEach(m=>{
+    const btn = document.getElementById('vt-'+m);
+    btn.className = 'vt-btn' + (m===mode ? ' on-'+m : '');
+  });
+
+  // 범례 표시/숨김
+  document.getElementById('leg-before').style.display = (mode==='after') ? 'none' : 'flex';
+  document.getElementById('leg-after').style.display  = (mode==='before')? 'none' : 'flex';
+
+  ROUTES.forEach(r=>{
+    const ly = layers[r.id];
+    if(!ly) return;
+
+    // 지도에서 모두 제거 후 필요한 것만 추가
+    [ly.before, ly.after, ly.labelBefore, ly.labelAfter,
+     ...ly.stopMarkersBefore, ...ly.stopMarkersAfter].forEach(l=>{
+      try{ map.removeLayer(l); }catch(e){}
+    });
+
+    if(mode==='before' || mode==='both'){
+      ly.before.addTo(map); ly.labelBefore.addTo(map);
+      ly.stopMarkersBefore.forEach(m=>m.addTo(map));
+    }
+    if(mode==='after' || mode==='both'){
+      ly.after.addTo(map); ly.labelAfter.addTo(map);
+      ly.stopMarkersAfter.forEach(m=>m.addTo(map));
+    }
+
+    // 비교 모드: 개편 전 선을 살짝 더 연하게
+    if(mode==='both'){
+      ly.before.setStyle({opacity:0.5, weight:2});
+      ly.after.setStyle({opacity:0.93, weight:5});
+    } else if(mode==='before'){
+      ly.before.setStyle({opacity:0.85, weight:3.5});
+    } else {
+      ly.after.setStyle({opacity:0.93, weight:5});
+    }
+  });
+
+  // 선택 중인 노선이 있으면 강조만 유지 (지도 이동 없음)
+  if(activeId) applyHighlight(activeId);
+}
+
+// 지도 이동 없이 레이어 강조만 적용
+function applyHighlight(id){
+  ROUTES.forEach(r=>{
+    const ly = layers[r.id];
+    if(!ly) return;
+    const dim = r.id !== id;
+    if(currentView==='before'||currentView==='both')
+      ly.before.setStyle({opacity: dim?0.12:0.85, weight: dim?1.5:(currentView==='both'?2.5:3.5)});
+    if(currentView==='after'||currentView==='both')
+      ly.after.setStyle({opacity: dim?0.12:0.93, weight: dim?2:5});
+    ly.stopMarkersBefore.forEach(m=>m.setStyle({opacity: dim?0.05:1, fillOpacity: dim?0.05:0.85}));
+    ly.stopMarkersAfter.forEach(m=>m.setStyle({opacity: dim?0.05:1, fillOpacity: dim?0.05:0.85}));
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+//  노선 선택
+// ════════════════════════════════════════════════════════════════
+function selectRoute(id){
+  // 사이드바 카드 강조
+  document.querySelectorAll('.route-card').forEach(c=>c.classList.remove('active'));
+  const card = document.getElementById('card-'+id);
+  if(card){ card.classList.add('active'); card.scrollIntoView({block:'nearest',behavior:'smooth'}); }
+
+  // 지도 레이어 강조 (지도 이동 없음)
+  applyHighlight(id);
+
+  // 상세 패널
+  const r = ROUTES.find(x=>x.id===id);
+  if(!r) return;
+  activeId = id;
+  document.getElementById('dp-name').textContent = r.name;
+  document.getElementById('dp-name').style.color = r.color;
+  document.getElementById('dp-route').textContent = r.routeDesc;
+  document.getElementById('dp-fuel').textContent = (r.fuelSaved/1e6).toFixed(1)+'M원';
+  document.getElementById('dp-co2').textContent  = r.co2Saved.toFixed(1)+'톤';
+  document.getElementById('dp-km').textContent   = r.kmSaved.toLocaleString()+'km';
+  document.getElementById('dp-type').textContent = r.algoLabel;
+  document.getElementById('dp-hb').textContent   = r.headwayBefore+'분';
+  document.getElementById('dp-ha').textContent   = r.headwayAfter+'분';
+  const hwDelta = r.headwayBefore - r.headwayAfter;
+  const deltaEl = document.getElementById('dp-delta');
+  if(hwDelta>0){
+    deltaEl.textContent = '▼'+hwDelta.toFixed(1)+'분 단축';
+    deltaEl.style.background='rgba(74,222,128,.15)';deltaEl.style.color='var(--green)';
+  } else {
+    deltaEl.textContent = '배차 유지';
+    deltaEl.style.background='rgba(90,100,144,.2)';deltaEl.style.color='var(--t2)';
+  }
+  document.getElementById('detailPanel').style.display = 'block';
+
+  // 해당 노선 fit
+  const ly = layers[id];
+  if(ly) map.fitBounds(ly.after.getBounds(),{padding:[60,280]});
+}
+
+function closeDetail(){
+  activeId = null;
+  document.getElementById('detailPanel').style.display='none';
+  document.querySelectorAll('.route-card').forEach(c=>c.classList.remove('active'));
+  setView(currentView); // 뷰 상태 그대로 복원
+}
+
+// ════════════════════════════════════════════════════════════════
+//  사이드바 렌더
+// ════════════════════════════════════════════════════════════════
+function renderCards(){
+  const container = document.getElementById('routeCards');
+  container.innerHTML = ROUTES.map(r=>{
+    const hwDelta = r.headwayBefore - r.headwayAfter;
+    return `
+    <div class="route-card" id="card-${r.id}" onclick="selectRoute('${r.id}')">
+      <div class="rc-top">
+        <div class="rc-dot" style="background:${r.color}"></div>
+        <span class="rc-name">${r.name}</span>
+        <span class="rc-sub">${r.routeDesc}</span>
+        <span class="rc-algo" style="background:${r.algoColor}22;color:${r.algoColor};border:1px solid ${r.algoColor}44">${r.algo}</span>
+      </div>
+      <div class="rc-metrics">
+        <div class="rc-m">
+          <div class="rc-ml">유류비 절감</div>
+          <div class="rc-mv good">${(r.fuelSaved/1e6).toFixed(0)}M원</div>
+        </div>
+        <div class="rc-m">
+          <div class="rc-ml">CO₂ 감축</div>
+          <div class="rc-mv" style="color:var(--green)">${r.co2Saved.toFixed(0)}톤</div>
+        </div>
+        <div class="rc-m">
+          <div class="rc-ml">배차간격</div>
+          <div class="rc-mv ${hwDelta>0?'good':'neu'}">
+            ${r.headwayBefore}→${r.headwayAfter}분
+            ${hwDelta>0?`<span class="delta-badge">▼${hwDelta.toFixed(0)}</span>`:''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ════════════════════════════════════════════════════════════════
+//  하단 바 애니메이션 카운터
+// ════════════════════════════════════════════════════════════════
+function animateCounter(elId, target, decimals, duration){
+  const el = document.getElementById(elId);
+  const start = performance.now();
+  function step(now){
+    const t = Math.min((now-start)/duration, 1);
+    const ease = t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;
+    el.textContent = (target*ease).toFixed(decimals);
+    if(t<1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
+function startCounters(){
+  animateCounter('bb-fuel', TOTAL_FUEL/1e8, 2, 1800);
+  animateCounter('bb-co2',  TOTAL_CO2,      0, 1800);
+  animateCounter('bb-km',   TOTAL_KM/1e4,   1, 1800);
+  animateCounter('bb-hw',   AVG_HW_SAVE,    1, 1800);
+  // 헤더도
+  document.getElementById('hdr-fuel').textContent=(TOTAL_FUEL/1e8).toFixed(2);
+  document.getElementById('hdr-co2').textContent =TOTAL_CO2.toFixed(0);
+  document.getElementById('hdr-km').textContent  =(TOTAL_KM/1e4).toFixed(1);
+}
+
+// ════════════════════════════════════════════════════════════════
+//  초기화
+// ════════════════════════════════════════════════════════════════
+window.addEventListener('load', async ()=>{
+  renderCards();
+  await drawAllRoutes();
+  startCounters();
+});
+</script>
+</body>
+</html>
