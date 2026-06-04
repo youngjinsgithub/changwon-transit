@@ -55,6 +55,9 @@ data/processed/*.parquet
 !data/processed/scenario_A_result.csv
 !data/processed/step0_region_ranking.csv
 !data/processed/stcis_boarding_long.csv.gz
+!data/processed/tago_stops.csv
+!data/processed/tago_routes.csv
+!data/processed/tago_route_stops.csv
 !data/processed/.gitkeep
 
 # processed/maps 의 folium HTML 은 팀 공유 허용
