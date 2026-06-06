@@ -115,7 +115,7 @@ select option{background:var(--surface2)}
 .leaflet-control-attribution{font-size:9px!important;background:rgba(15,17,23,.7)!important;color:var(--text3)!important}
 .leaflet-control-attribution a{color:var(--text3)!important}
 .leaflet-container{background:#1a1f2e!important}
-.leaflet-tile{filter:brightness(.85) saturate(.7) hue-rotate(190deg)!important}
+.leaflet-tile{filter:brightness(.95)!important}
 </style>
 </head>
 <body>
@@ -413,9 +413,10 @@ async function fetchOSRMRoute(pts){
 // ══════════════════════════════════════════
 function initMap(){
   leafletMap=L.map('mapContainer',{center:[35.2100,128.6400],zoom:12,zoomControl:false});
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    attribution:'© <a href="https://openstreetmap.org">OpenStreetMap</a> contributors',
-    maxZoom:19
+  L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{
+    subdomains:['0','1','2','3'],
+    attribution:'© Google Maps',
+    maxZoom:20
   }).addTo(leafletMap);
 }
 
