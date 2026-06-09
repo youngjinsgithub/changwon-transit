@@ -218,6 +218,13 @@ header h1{font-size:14px;font-weight:700;letter-spacing:-.3px}
     <div class="map-tools">
       <button class="tool-btn" id="heatBtn" onclick="toggleHeatmap()">🔥 승객 히트맵</button>
       <button class="tool-btn" id="simBtn"  onclick="toggleBusAnim()">▶ 버스 시뮬</button>
+      <button class="tool-btn" id="baseBtn" onclick="toggleBase()">지도: Esri</button>
+      <select id="baseSelect" onchange="setBase(this.value)" style="margin-top:6px;padding:6px 8px;border-radius:6px;background:rgba(15,17,23,.9);color:var(--text);border:1px solid var(--b1);">
+        <option value="esri">Esri World Imagery</option>
+        <option value="google">Google Satellite</option>
+        <option value="osm">OpenStreetMap (tiles)</option>
+      </select>
+      <button class="tool-btn" id="scanBtn" onclick="quickScan()" style="margin-top:6px">빠른 스캔</button>
     </div>
 
     <!-- 범례 -->
@@ -259,50 +266,50 @@ header h1{font-size:14px;font-weight:700;letter-spacing:-.3px}
 const ALGO_INFO = {
   'SA': {
     icon: '⚡',
-    name: 'SA — 모의 담금질(Simulated Annealing)',
-    sub: '배차간격 최적화 알고리즘',
+    name: 'SA — 시뮬레이티드 애닐링 기반 배차 최적화',
+    sub: '운행 주기시간을 최적화해 차량 배치 효율을 개선',
     color: '#d97706',
-    formula: 'H = VCT ÷ K   (VCT↓ → 배차간격↓)',
+    formula: 'H = VCT ÷ K   (VCT 감소 → 배차간격 개선)',
     points: [
-      '운행 주기시간(VCT)을 단축해 동일 차량 대수로 배차 개선',
-      '온도 T를 낮추며 전역 최적해로 수렴 — 지역 최소 탈출 가능',
-      '저수요 정류장 제거 → 편도 소요시간↓ → 배차간격↓'
+      '운행 주기시간(VCT) 감소를 통해 동일 차량 대수로 더 촘촘한 배차 실현',
+      '시뮬레이티드 애닐링 알고리즘으로 전역 최적화 해 탐색',
+      '저수요 정류장은 통합/간소화하여 편도 소요시간과 배차간격을 동시에 개선'
     ]
   },
   'SA+BRT': {
     icon: '🚇',
-    name: 'SA + BRT 환승 연계',
-    sub: '배차 최적화 + 간선 BRT 직결',
+    name: 'SA + BRT 통합 운행 최적화',
+    sub: 'BRT 환승 연계를 포함한 배차 효율화',
     color: '#8b75e0',
     formula: 'H_new = H_old × (VCT_new ÷ VCT_old)',
     points: [
-      '양곡 우회 구간 제거 → 노선 단축 + 주기시간 감소',
-      '봉암동에서 창원 BRT(5000번)와 환승 연계',
-      'SA 목적함수에 BRT 환승 수요 가중치 반영'
+      'SA 기반 주기시간 최적화로 노선 운행 효율을 향상',
+      '봉암동에서 창원 BRT(5000번) 환승 연계를 설정하여 직결성 확보',
+      'BRT 환승 수요를 목적함수에 반영해 수송 효율을 증가'
     ]
   },
   'D*': {
     icon: '📐',
-    name: 'D* — 경로직선화 최적화',
-    sub: '우회 구간 제거 → 운영비·CO₂ 절감',
+    name: 'D* — 경로 직선화 최적화',
+    sub: '우회 경로를 제거해 운행거리와 탄소 배출을 저감',
     color: '#5b8dd9',
     formula: '우회도 = (L실제 − L직선) ÷ L직선 × 100%',
     points: [
-      '다익스트라 변형으로 최단 경로 재탐색·우회 구간 식별',
-      '배차간격 유지 — 연간 운행 km·유류비·CO₂ 절감 목표',
-      '제거된 구간 수요는 인접 노선(105번·160번)이 흡수'
+      '경로 탐색 알고리즘으로 비효율적 우회 구간을 식별',
+      '동일 배차간격 유지 하에 운행 km, 유류비, CO₂ 배출을 동시 감소',
+      '삭제된 구간 수요는 인접 노선으로 보완하여 네트워크 안정성 확보'
     ]
   },
   'DRT': {
     icon: '📱',
-    name: 'DRT — 수요응답형 전환',
-    sub: '예약 기반 탄력 배차 서비스',
+    name: 'DRT — 수요응답형 운행 최적화',
+    sub: '예약기반 탄력 배차로 불필요 운행을 최소화',
     color: '#c45252',
-    formula: 'W = λ ÷ [2μ(μ − λ)]  (대기행렬 모형)',
+    formula: 'W = λ ÷ [2μ(μ − λ)]  (대기행렬 모델)',
     points: [
-      '6개 거점 고정 운행 + 중간 구간 모바일 예약 파견',
-      '수요 도착률(λ) 기반 최적 배차 — 공차 주행 최소화',
-      '동일 서비스를 더 낮은 운영비로 제공 가능'
+      '거점 고정 운행과 모바일 예약 기반 중간 구간 운행을 결합',
+      '수요 도착률(λ) 기반 배차 설계로 공차 주행을 최소화',
+      '수요 집중 구간을 탄력적으로 대응해 운영비 효율을 제고'
     ]
   }
 };
@@ -877,19 +884,96 @@ const TOTAL_CO2  = ROUTES.reduce((a,r)=>a+r.co2Saved,0);
 const TOTAL_KM   = ROUTES.reduce((a,r)=>a+r.kmSaved,0);
 const AVG_HW_SAVE= ROUTES.reduce((a,r)=>a+(r.headwayBefore-r.headwayAfter),0)/ROUTES.length;
 
+const fullBounds = L.latLngBounds(ROUTES.flatMap(r =>
+  [...r.stops, ...r.stopsAfter].map(s => [s.lat, s.lng])
+));
+const fullCenter = fullBounds.getCenter();
+
 // ════════════════════════════════════════════════════════════════
 //  지도 초기화
 // ════════════════════════════════════════════════════════════════
-const map = L.map('map',{center:[35.195,128.620],zoom:11,zoomControl:false});
+const map = L.map('map',{center:fullCenter,zoom:11,zoomControl:false,minZoom:11,maxZoom:19,maxBounds:[[35.03,128.34],[35.39,128.87]],maxBoundsViscosity:0.9,scrollWheelZoom:true,doubleClickZoom:true,boxZoom:false,keyboard:false,touchZoom:true,zoomDelta:0.25,zoomSnap:0.25,wheelPxPerZoomLevel:120});
+
+// create dedicated panes for heatmap layers to control draw order and opacity
+map.createPane('heat-before');
+map.getPane('heat-before').style.zIndex = 450;
+map.getPane('heat-before').style.pointerEvents = 'none';
+map.getPane('heat-before').style.opacity = '0.60';
+map.createPane('heat-after');
+map.getPane('heat-after').style.zIndex = 460;
+map.getPane('heat-after').style.pointerEvents = 'none';
+map.getPane('heat-after').style.opacity = '1';
 // Google Maps 위성+도로 하이브리드 (한국 전역 커버, 고해상도)
-L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{
+// Basemap layers: keep Google as an option and use Esri by default
+const googleLayer = L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{
   subdomains:['0','1','2','3'],
   attribution:'© Google Maps',
   maxZoom:20
-}).addTo(map);
+});
+
+const esriLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{
+  attribution: 'Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
+  maxZoom:20
+});
+
+// 추가 후보: OpenStreetMap (라스터) — 참고용(위성은 아님)
+const osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  attribution: '© OpenStreetMap contributors', maxZoom:19
+});
+
+let baseLayer = 'esri';
+esriLayer.addTo(map);
+
+function setBase(name){
+  if(name === baseLayer) return;
+  if(name === 'google'){
+    if(map.hasLayer(esriLayer)) map.removeLayer(esriLayer);
+    googleLayer.addTo(map);
+    baseLayer = 'google';
+    const b = document.getElementById('baseBtn'); if(b) b.textContent = '지도: Google';
+  } else {
+    if(map.hasLayer(googleLayer)) map.removeLayer(googleLayer);
+    esriLayer.addTo(map);
+    baseLayer = 'esri';
+    const b = document.getElementById('baseBtn'); if(b) b.textContent = '지도: Esri';
+  }
+}
+
+function toggleBase(){ setBase(baseLayer === 'esri' ? 'google' : 'esri'); }
+
+// 후보 목록과 자동 스캔 기능
+const BASE_CANDIDATES = ['esri','google','osm'];
+let scanTimer = null;
+function quickScan(){
+  const btn = document.getElementById('scanBtn');
+  if(scanTimer){ clearInterval(scanTimer); scanTimer = null; btn.textContent='빠른 스캔'; return; }
+  let i = 0; btn.textContent='스캔 중...';
+  scanTimer = setInterval(()=>{
+    const id = BASE_CANDIDATES[i % BASE_CANDIDATES.length];
+    setBase(id);
+    const sel = document.getElementById('baseSelect'); if(sel) sel.value = id;
+    i++;
+    if(i>BASE_CANDIDATES.length*3){ clearInterval(scanTimer); scanTimer=null; btn.textContent='빠른 스캔'; }
+  }, 900);
+}
+
+// setBase에 OSM 핸들 추가
+const _setBase = setBase;
+setBase = function(name){
+  if(name === baseLayer) return;
+  if(name === 'osm'){
+    if(map.hasLayer(esriLayer)) map.removeLayer(esriLayer);
+    if(map.hasLayer(googleLayer)) map.removeLayer(googleLayer);
+    osmLayer.addTo(map);
+    baseLayer='osm';
+    const b = document.getElementById('baseBtn'); if(b) b.textContent='지도: OSM';
+    return;
+  }
+  _setBase(name);
+}
 
 function resetView(){
-  map.setView([35.195,128.620],11);
+  map.setView(fullCenter,11);
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -950,33 +1034,65 @@ async function drawAllRoutes(){
     // 좌표 저장 (버스 애니메이션용)
     routeCoords[r.id] = {before: latlngsBefore, after: latlngsAfter};
 
-    // ── 정류장 마커: 개편 전(회색) + 개편 후(컬러) 별도 관리 ──
-    const mkMarkers = (stopList, color, isBefore) => stopList.map((s,i)=>{
-      const isTerminal = i===0 || i===stopList.length-1;
-      const m = L.circleMarker([s.lat,s.lng],{
-        radius: isTerminal?7:4,
-        fillColor: isBefore ? 'rgba(30,30,40,0.75)' : color,
-        color: isBefore ? '#6b7280' : color,
-        weight: isTerminal?2:1.5,
-        opacity:1, fillOpacity: isTerminal?0.85:0.65
+    // ── 정류장 마커: 개편 전/개편 후 모두 같은 대표 정류장만 표시 ──
+    const chooseRepresentativeStops = (stopList) => {
+      const names = new Set();
+      const majorKeywords = ['종점','환승센터','대학교','시장','구청','병원','터미널','역','센터','광장','공원','사거리','입구'];
+      const cleanName = (name) => name.replace(/\s+/g,'');
+      stopList.forEach((stop,i)=>{
+        if(i===0 || i===stopList.length-1){
+          names.add(stop.name);
+          return;
+        }
+        const simple = cleanName(stop.name);
+        if(majorKeywords.some(k=>simple.includes(k))){
+          names.add(stop.name);
+          return;
+        }
       });
-      const tag = isBefore ? '현행' : '개편';
-      m.bindTooltip(`${s.name} <span style="color:${isBefore?'#9ca3af':color}">[${tag}]</span>`,
-        {permanent:false,direction:'top',className:'stop-tt'});
-      return m;
-    });
+      if(names.size > 6) return names;
+      const interval = Math.max(5, Math.round(stopList.length / 6));
+      stopList.forEach((stop,i)=>{
+        if(i===0 || i===stopList.length-1) return;
+        if(i % interval === 0) names.add(stop.name);
+      });
+      return names;
+    };
+    const representativeStopNames = chooseRepresentativeStops(r.stopsAfter);
+    const mkMarkers = (stopList, color, isBefore) => stopList
+      .map((s,i)=>({s,i}))
+      .filter(({s})=>representativeStopNames.has(s.name))
+      .map(({s,i})=>{
+        const isTerminal = i===0 || i===stopList.length-1;
+        const m = L.circleMarker([s.lat,s.lng],{
+          radius: isTerminal?7:4,
+          fillColor: isBefore ? 'rgba(30,30,40,0.75)' : color,
+          color: isBefore ? '#6b7280' : color,
+          weight: isTerminal?2:1.5,
+          opacity:1, fillOpacity: isTerminal?0.85:0.65
+        });
+        const tag = isBefore ? '현행' : '개편';
+        m.bindTooltip(`${s.name} <span style="color:${isBefore?'#9ca3af':color}">[${tag}]</span>`,
+          {permanent:false,direction:'right',className:'stop-tt',offset:[8,0]});
+        return m;
+      });
     const stopMarkersBefore = mkMarkers(r.stops,     r.color, true);
     const stopMarkersAfter  = mkMarkers(r.stopsAfter,r.color, false);
 
     // ── 라벨 (개편 전 / 개편 후 각각) ──
+    const labelSide = ['3006','3002','770'].includes(r.id) ? 'left' : 'right';
     const mkLabel = (latlngs, isBefore)=>{
       const midPt = latlngs[Math.floor(latlngs.length/2)];
+      const anchor = labelSide === 'left' ? [120,8] : [-4,8];
+      const align = labelSide === 'left' ? 'right' : 'left';
+      const margin = labelSide === 'left' ? 'margin-right:6px;' : '';
       return L.marker(midPt,{
         icon: L.divIcon({
           html: isBefore
-            ? `<span style="background:rgba(0,0,0,0.6);color:rgba(255,255,255,0.88);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;white-space:nowrap;display:inline-block;font-family:'DM Mono',monospace;border:1px dashed rgba(255,255,255,0.55)">∙∙ ${r.name} 현행</span>`
-            : `<span style="background:${r.color};color:#000;padding:1px 7px;border-radius:3px;font-size:10px;font-weight:700;white-space:nowrap;display:inline-block;font-family:'DM Mono',monospace">${r.name} 개편</span>`,
-          className:'', iconAnchor:[-4,8]
+            ? `<span style="background:rgba(0,0,0,0.6);color:rgba(255,255,255,0.88);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:600;white-space:nowrap;display:inline-block;font-family:'DM Mono',monospace;border:1px dashed rgba(255,255,255,0.55);text-align:${align};${margin}">∙∙ ${r.name} 현행</span>`
+            : `<span style="background:${r.color};color:#000;padding:1px 7px;border-radius:3px;font-size:10px;font-weight:700;white-space:nowrap;display:inline-block;font-family:'DM Mono',monospace;text-align:${align};${margin}">${r.name} 개편</span>`,
+
+          className:'', iconAnchor:anchor
         }),
         interactive:false
       });
@@ -1053,6 +1169,8 @@ function setView(mode){
 
   // 선택 중인 노선이 있으면 강조만 유지 (지도 이동 없음)
   if(activeId) applyHighlight(activeId);
+  updateStopTooltips(activeId);
+  if(heatVisible && activeId) updateHeatmapRoute(activeId);
 }
 
 // 지도 이동 없이 레이어 강조만 적용
@@ -1067,6 +1185,17 @@ function applyHighlight(id){
       ly.after.setStyle({opacity: dim?0.08:0.95, weight: dim?2:6});
     ly.stopMarkersBefore.forEach(m=>m.setStyle({opacity: dim?0.05:1, fillOpacity: dim?0.05:0.85}));
     ly.stopMarkersAfter.forEach(m=>m.setStyle({opacity: dim?0.05:1, fillOpacity: dim?0.05:0.85}));
+  });
+}
+
+function updateStopTooltips(selectedId){
+  ROUTES.forEach(r=>{
+    const ly = layers[r.id];
+    if(!ly) return;
+    const open = r.id === selectedId;
+    [...ly.stopMarkersBefore, ...ly.stopMarkersAfter].forEach(m=>{
+      if(open) m.openTooltip(); else m.closeTooltip();
+    });
   });
 }
 
@@ -1125,9 +1254,35 @@ function selectRoute(id){
   document.getElementById('dp-algo-pts').innerHTML =
     ai.points.map(p=>`<li>${p}</li>`).join('');
 
-  // 해당 노선 fit
+  // 해당 노선 강조만 하고 지도 뷰는 창원 중심으로 유지
   const ly = layers[id];
-  if(ly) map.fitBounds(ly.after.getBounds(),{padding:[60,280]});
+  if(ly) {
+    updateStopTooltips(id);
+    if(heatVisible) updateHeatmapRoute(id);
+    const points = [...r.stops, ...r.stopsAfter];
+    const bounds = L.latLngBounds(points.map(s=>[s.lat, s.lng]));
+    const panel = document.getElementById('detailPanel');
+    const panelWidth = panel?.offsetWidth || 260;
+    const rightPadding = panelWidth + 60;
+    const extraRightPadding = ['3006','3002','770'].includes(id);
+
+    if(extraRightPadding){
+      map.fitBounds(bounds, {paddingTopLeft:[80,80], paddingBottomRight:[rightPadding,80]});
+      const eastMostStop = points.reduce((best, stop) => stop.lng > best.lng ? stop : best, points[0]);
+      const eastPoint = L.latLng(eastMostStop.lat, eastMostStop.lng);
+      const eastPixel = map.latLngToContainerPoint(eastPoint);
+      const mapWidth = map.getSize().x;
+      const allowedX = mapWidth - rightPadding;
+      const shiftX = Math.max(0, eastPixel.x - allowedX);
+      if(shiftX > 0){
+        map.panBy([-shiftX, 0], {animate:false});
+      }
+    } else if(bounds.getCenter().lng > fullCenter.lng + 0.03){
+      map.fitBounds(bounds, {paddingTopLeft:[80,80], paddingBottomRight:[280,80]});
+    } else {
+      map.fitBounds(bounds, {padding:[80,80]});
+    }
+  }
 }
 
 function closeDetail(){
@@ -1136,6 +1291,10 @@ function closeDetail(){
   document.querySelectorAll('.route-card').forEach(c=>c.classList.remove('active'));
   resetBottomBar();
   setView(currentView);
+  updateStopTooltips(null);
+  if(heatVisible){
+    toggleHeatmap();
+  }
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1231,35 +1390,85 @@ function resetBottomBar(){
 }
 
 // ════════════════════════════════════════════════════════════════
-//  히트맵
+//  히트맵 (before / after layers, supports 'both')
 // ════════════════════════════════════════════════════════════════
-let heatLayer = null;
+let heatLayerBefore = null;
+let heatLayerAfter = null;
 let heatVisible = false;
+let heatRouteId = null;
 
-function buildHeatmap(){
+function buildHeatmap(routeId, useAfter){
   const pts = [];
-  ROUTES.forEach(r=>{
-    const w = (60 / r.headwayBefore) * 0.4;
-    r.stops.forEach((s,i)=>{
-      const terminal = i===0 || i===r.stops.length-1;
+  const route = ROUTES.find(r=>r.id===routeId);
+  if(route){
+    const w = (60 / route.headwayBefore) * 0.4;
+    const stopList = useAfter ? route.stopsAfter : route.stops;
+    stopList.forEach((s,i)=>{
+      const terminal = i===0 || i===stopList.length-1;
       pts.push([s.lat, s.lng, w * (terminal ? 2.2 : 0.9)]);
     });
-  });
-  return L.heatLayer(pts,{
+  }
+  const gradientBefore = {
+    0.15: 'rgba(29,78,216,0.65)',
+    0.45: 'rgba(6,182,212,0.65)',
+    0.72: 'rgba(245,158,11,0.65)',
+    1.0:  'rgba(239,68,68,0.65)'
+  };
+  const gradientAfter = {
+    0.15: '#ffd6d6',
+    0.45: '#ff8a8a',
+    0.72: '#ff4d4d',
+    1.0:  '#ff1f1f'
+  };
+  return L.heatLayer(pts,{ 
+    pane: useAfter ? 'heat-after' : 'heat-before',
     radius:38, blur:30, maxZoom:15,
-    gradient:{0.15:'#1d4ed8', 0.45:'#06b6d4', 0.72:'#f59e0b', 1.0:'#ef4444'}
+    gradient: useAfter ? gradientAfter : gradientBefore
   });
+}
+
+function updateHeatmapRoute(routeId){
+  if(heatLayerBefore){ map.removeLayer(heatLayerBefore); heatLayerBefore = null; }
+  if(heatLayerAfter){ map.removeLayer(heatLayerAfter); heatLayerAfter = null; }
+  heatRouteId = routeId;
+  if(!routeId) return;
+  if(currentView === 'both'){
+    heatLayerBefore = buildHeatmap(routeId, false);
+    heatLayerAfter  = buildHeatmap(routeId, true);
+    if(heatVisible){
+      heatLayerBefore.addTo(map);
+      heatLayerAfter.addTo(map);
+    }
+  } else if(currentView === 'after'){
+    heatLayerAfter = buildHeatmap(routeId, true);
+    if(heatVisible) heatLayerAfter.addTo(map);
+  } else {
+    heatLayerBefore = buildHeatmap(routeId, false);
+    if(heatVisible) heatLayerBefore.addTo(map);
+  }
 }
 
 function toggleHeatmap(){
   if(!heatVisible){
-    if(!heatLayer) heatLayer = buildHeatmap();
-    heatLayer.addTo(map);
+    if(!activeId){
+      alert('노선을 먼저 선택한 뒤 히트맵을 켜주세요.');
+      return;
+    }
+    if(heatRouteId !== activeId) updateHeatmapRoute(activeId);
+    if(currentView === 'both'){
+      if(heatLayerBefore) heatLayerBefore.addTo(map);
+      if(heatLayerAfter)  heatLayerAfter.addTo(map);
+    } else if(currentView === 'after'){
+      if(heatLayerAfter) heatLayerAfter.addTo(map);
+    } else {
+      if(heatLayerBefore) heatLayerBefore.addTo(map);
+    }
     heatVisible = true;
     document.getElementById('heatBtn').classList.add('active');
     document.getElementById('heatBtn').textContent = '🔥 히트맵 ON';
   } else {
-    if(heatLayer) map.removeLayer(heatLayer);
+    if(heatLayerBefore) map.removeLayer(heatLayerBefore);
+    if(heatLayerAfter)  map.removeLayer(heatLayerAfter);
     heatVisible = false;
     document.getElementById('heatBtn').classList.remove('active');
     document.getElementById('heatBtn').textContent = '🔥 승객 히트맵';
